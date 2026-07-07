@@ -34,6 +34,7 @@ def init_session_state() -> None:
         # ── API Status ──────────────────────────────────────────────────────
         "api_reachable": None,          # None = unchecked, True/False after probe
         "api_last_checked": None,       # datetime or None
+        "last_successful_sync": None,   # datetime or None
 
         # ── Data Cache ──────────────────────────────────────────────────────
         "aqi_data": None,               # Latest Surface AQI dataset

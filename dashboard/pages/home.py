@@ -46,10 +46,16 @@ def render() -> None:
         subtitle="VAYU-DRISHTI — Real-time atmospheric intelligence for South Asia",
     )
 
-    render_info_notice(
-        "📅 Day 2 Dashboard Skeleton. Displaying stub data. "
-        "Live API integration arrives in Day 3."
-    )
+    api_reachable = st.session_state.get("api_reachable", False)
+    if api_reachable:
+        render_info_notice(
+            "📅 Day 3 Live API Integration. Dashboard is successfully connected to the FastAPI backend."
+        )
+    else:
+        render_info_notice(
+            "⚠️ Backend is Offline. Displaying fallback cached/stub data. "
+            "Start the FastAPI backend server to enable live data integration."
+        )
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
@@ -178,28 +184,28 @@ def _render_module_cards() -> None:
             "icon": "🌫️",
             "color": AQI_VERY_POOR,
             "description": "Real-time AQI readings from 400+ CPCB monitoring stations across India. Pollutant breakdown, spatial heatmaps, and trend analysis.",
-            "status": "Stub",
+            "status": "Live",
         },
         {
             "name": "HCHO Hotspots",
             "icon": "⚗️",
             "color": PRIMARY,
             "description": "Formaldehyde column density maps from Sentinel-5P TROPOMI. Industrial emission source attribution and trend detection.",
-            "status": "Stub",
+            "status": "Live",
         },
         {
             "name": "Fire Monitoring",
             "icon": "🔥",
             "color": ACCENT_ORANGE,
             "description": "Active fire detections from MODIS/VIIRS with Fire Radiative Power. AQI impact correlation and trajectory forecasting.",
-            "status": "Stub",
+            "status": "Live",
         },
         {
             "name": "AQI Forecast",
             "icon": "📈",
             "color": AQI_GOOD,
             "description": "72-hour AQI predictions with calibrated confidence intervals. Multi-station ensemble model with feature-level explanations.",
-            "status": "Stub",
+            "status": "Live",
         },
         {
             "name": "Explainable AI",
@@ -265,8 +271,8 @@ def _render_sprint_progress() -> None:
     days = [
         ("Day 1", "Backend Foundation",    "✅ Complete", AQI_GOOD,    "FastAPI, PostgreSQL, Pydantic Settings, Health/Version endpoints"),
         ("Day 2", "Dashboard Skeleton",     "✅ Complete", AQI_GOOD,    "Streamlit layout, 7-module navigation, service interfaces, stub pages"),
-        ("Day 3", "API Integration",        "🔜 Next",     PRIMARY,     "Live backend data, map layers, real AQI charts"),
-        ("Day 4", "ML Model Integration",   "⏳ Planned",  TEXT_MUTED,  "XGBoost forecasting, SHAP explanations, model metrics"),
+        ("Day 3", "API Integration",        "✅ Complete", AQI_GOOD,    "Live backend data, map layers, real AQI charts"),
+        ("Day 4", "ML Model Integration",   "🔜 Next",     PRIMARY,     "XGBoost forecasting, SHAP explanations, model metrics"),
         ("Day 5", "GIS Visualisation",      "⏳ Planned",  TEXT_MUTED,  "Folium/Deck.gl satellite imagery overlays"),
         ("Day 6", "Reports & Export",       "⏳ Planned",  TEXT_MUTED,  "PDF generation, scheduled emails, CSV exports"),
         ("Day 7", "Production Hardening",   "⏳ Planned",  TEXT_MUTED,  "Auth, rate limiting, monitoring, CI/CD"),

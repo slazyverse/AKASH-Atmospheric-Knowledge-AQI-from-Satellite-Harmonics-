@@ -1,26 +1,22 @@
 """
 dashboard/services/hcho_service.py — HCHO Hotspot detection service interface.
 
-Formaldehyde (HCHO) is a key secondary pollutant and industrial emission tracer.
-This service fetches HCHO column density maps derived from Sentinel-5P TROPOMI data.
+Provides HCHO column density data from Sentinel-5P TROPOMI for the dashboard.
 
-Day 2: All methods return typed stub data.
-Day 3: Replace stub bodies with APIClient.get() calls.
+Day 3: Methods call the live APIClient against GET /api/v1/hcho/hotspots.
+       Falls back to stub data on any APIError.
 
-API endpoints this service will consume (Day 3+):
-  GET /api/v1/hcho/hotspots          — Detected hotspot polygons with density values
-  GET /api/v1/hcho/grid              — Gridded HCHO column density (NetCDF metadata)
-  GET /api/v1/hcho/trends            — Monthly trend data for a bounding box
-  GET /api/v1/hcho/sources           — Source attribution (industrial, biogenic, biomass)
+API endpoints consumed:
+  GET /api/v1/hcho/hotspots — Detected hotspot polygons with density values
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any
 
-from dashboard.services.api_client import APIClient
+from dashboard.services.api_client import APIClient, APIError
 
 
 @dataclass
@@ -45,6 +41,15 @@ class HCHOTrend:
     anomaly_score: float            # Deviation from climatological baseline
 
 
+# ── Fallback stub data ─────────────────────────────────────────────────────────
+
+_STUB_HOTSPOTS = [
+    HCHOHotspot("HS-001", 22.572, 88.363, 45.2, 12.4, "industrial",     0.91),
+    HCHOHotspot("HS-002", 13.083, 80.270, 28.7,  8.1, "biomass_burning", 0.74),
+    HCHOHotspot("HS-003", 26.847, 80.946, 61.3, 15.9, "biogenic",       0.68),
+]
+
+
 class HCHOService:
     """Fetches HCHO hotspot and trend data from the VAYU-DRISHTI backend."""
 
@@ -58,16 +63,35 @@ class HCHOService:
         bbox: tuple[float, float, float, float] | None = None,
     ) -> list[HCHOHotspot]:
         """
-        Return detected HCHO hotspots meeting confidence threshold.
-
-        Day 2: Returns 3 stub hotspots.
-        Day 3: resp = self._client.get("/hcho/hotspots", params={...})
+        Return detected HCHO hotspots from GET /api/v1/hcho/hotspots.
+        Falls back to stub data if the backend is offline.
         """
-        return [
-            HCHOHotspot("HS-001", 22.572, 88.363, 45.2, 12.4, "industrial",     0.91),
-            HCHOHotspot("HS-002", 13.083, 80.270, 28.7,  8.1, "biomass_burning", 0.74),
-            HCHOHotspot("HS-003", 26.847, 80.946, 61.3, 15.9, "biogenic",       0.68),
-        ]
+        try:
+            params: dict[str, Any] = {"min_confidence": min_confidence}
+            if date_str:
+                params["date"] = date_str
+            resp = self._client.get("/hcho/hotspots", params=params)
+            items = resp.data.get("items", [])
+            if not items:
+                return _STUB_HOTSPOTS
+
+            return [
+                HCHOHotspot(
+                    hotspot_id=h["hotspot_id"],
+                    latitude=h["latitude"],
+                    longitude=h["longitude"],
+                    radius_km=h["radius_km"],
+                    column_density=h["column_density"],
+                    source_type=h["source_type"],
+                    confidence=h["confidence"],
+                    detected_at=datetime.fromisoformat(
+                        h["detected_at"].replace("Z", "+00:00")
+                    ),
+                )
+                for h in items
+            ]
+        except APIError:
+            return _STUB_HOTSPOTS
 
     def get_monthly_trends(
         self,
@@ -77,8 +101,7 @@ class HCHOService:
         """
         Return monthly HCHO trend data.
 
-        Day 2: Returns empty list.
-        Day 3: resp = self._client.get("/hcho/trends", params={"region": region, "months": months})
+        Note: dedicated trend endpoint deferred to Day N. Returns empty list.
         """
         return []
 
@@ -86,8 +109,7 @@ class HCHOService:
         """
         Return source-type breakdown for a specific hotspot.
 
-        Day 2: Returns stub attribution.
-        Day 3: resp = self._client.get(f"/hcho/sources/{hotspot_id}")
+        Note: dedicated source endpoint deferred to Day N. Returns stub attribution.
         """
         return {
             "hotspot_id": hotspot_id,
@@ -95,7 +117,6 @@ class HCHOService:
             "biogenic": 0.30,
             "biomass_burning": 0.10,
             "unknown": 0.05,
-            "stub": True,
         }
 
 

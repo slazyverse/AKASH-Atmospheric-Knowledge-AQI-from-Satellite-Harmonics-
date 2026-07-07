@@ -136,6 +136,12 @@ class Settings(BaseSettings):
                     "The default SECRET_KEY must not be used in production. "
                     "Generate a new key with: python -c \"import secrets; print(secrets.token_hex(32))\""
                 )
+            for origin in self.ALLOWED_ORIGINS:
+                if "localhost" in origin or "127.0.0.1" in origin or origin == "*":
+                    raise ValueError(
+                        f"Insecure origin '{origin}' is not allowed in production environment. "
+                        "ALLOWED_ORIGINS must not contain localhost, loopback IPs, or wildcard (*)."
+                    )
         return self
 
 

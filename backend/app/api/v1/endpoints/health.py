@@ -22,19 +22,17 @@ Why direct engine probe (not get_db dependency):
   the health handler's try/except and reported as component 'unhealthy'.
 
 HTTP status note:
-  This endpoint always returns HTTP 200 so that monitoring systems receive
-  structured JSON data rather than connection errors. Monitoring tools
-  must inspect the 'status' field, not the HTTP status code.
-
-Kubernetes integration:
-  - Liveness probe:  GET /api/v1/health (restarts pod if unreachable)
-  - Readiness probe: GET /api/v1/health + assert status != 'unhealthy'
+  - If any critical backend dependency (like the database) is unhealthy,
+    returns HTTP 503 Service Unavailable in RFC 7807 format.
+  - If components are healthy or partially degraded, returns HTTP 200 OK.
 """
 
 import time
 from datetime import UTC, datetime
+from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app.core.config import Settings, get_settings
@@ -57,25 +55,45 @@ router = APIRouter()
     summary="Health Check",
     description=(
         "Returns the real-time health status of the VAYU-DRISHTI API and its dependencies. "
-        "A response with `status: healthy` confirms the service is ready to serve traffic. "
-        "Component-level breakdown allows operators to identify which subsystem is degraded "
-        "without inspecting application logs. "
-        "**Note:** This endpoint always returns HTTP 200 so that monitoring tools receive "
-        "structured data rather than raw connection errors. Inspect the `status` field."
+        "A response with status code 200 and `status: healthy` confirms the service is fully ready to serve traffic. "
+        "A response with status code 503 Service Unavailable indicates that critical required "
+        "dependencies (like the database) are unhealthy. "
+        "Component-level breakdown is provided to diagnose subsystems."
     ),
     tags=["observability"],
     responses={
         200: {
-            "description": (
-                "Health check completed. Inspect `status` field — "
-                "may be `healthy`, `degraded`, or `unhealthy`."
-            )
+            "description": "Health check completed. Application is healthy or partially degraded.",
+            "model": HealthResponse,
+        },
+        503: {
+            "description": "Service Unavailable. Critical dependencies (Database) are unhealthy.",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": {
+                            "code": "DATABASE_ERROR",
+                            "message": "Database is unreachable or unhealthy.",
+                            "detail": {
+                                "status": "unhealthy",
+                                "timestamp": "2026-07-06T18:00:00Z",
+                                "environment": "development",
+                                "components": {
+                                    "api": {"status": "healthy", "detail": "Request handler reachable."},
+                                    "database": {"status": "unhealthy", "detail": "Database unreachable: ..."}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     },
 )
 async def health_check(
+    response: Response,
     settings: Settings = Depends(get_settings),
-) -> HealthResponse:
+) -> Any:
     """Probe all registered service components and return an aggregate health report."""
 
     components: dict[str, ComponentHealth] = {}
@@ -126,6 +144,32 @@ async def health_check(
     else:
         overall = OverallStatus.HEALTHY
 
+    if overall == OverallStatus.UNHEALTHY:
+        # Return 503 Service Unavailable with RFC 7807 error layout
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "error": {
+                    "code": "DATABASE_ERROR",
+                    "message": "Database is unreachable or unhealthy.",
+                    "detail": {
+                        "status": overall.value,
+                        "timestamp": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+                        "environment": settings.ENVIRONMENT,
+                        "components": {
+                            k: {
+                                "status": v.status.value,
+                                "latency_ms": v.latency_ms,
+                                "detail": v.detail,
+                            }
+                            for k, v in components.items()
+                        },
+                    },
+                }
+            },
+        )
+
+    response.status_code = status.HTTP_200_OK
     return HealthResponse(
         status=overall,
         timestamp=datetime.now(UTC),

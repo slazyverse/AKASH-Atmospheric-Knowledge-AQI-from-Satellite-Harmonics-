@@ -19,6 +19,7 @@ Design decisions:
 
 from __future__ import annotations
 
+from datetime import datetime
 import streamlit as st
 
 from dashboard.core.config import dashboard_config
@@ -35,6 +36,7 @@ from dashboard.core.theme import (
     TEXT_MUTED,
     TEXT_SECONDARY,
 )
+from dashboard.services.api_client import APIClient
 
 # Ordered list defines both navigation sequence and display labels
 NAVIGATION_MODULES: list[str] = [
@@ -139,17 +141,26 @@ def _render_api_status() -> None:
     """
     Render a visual indicator for backend API connectivity.
 
-    Day 2: Always shows as 'Stub Mode' (live probe not yet implemented).
-    Day 3: Will call dashboard_config.health_url and update this indicator.
+    Day 3: Call APIClient().health_check(timeout=1.0) to get the live status.
+    Throttled to run at most once every 10 seconds to keep UI responsive.
     """
+    client = APIClient()
+    now = datetime.now()
+    last_checked = st.session_state.get("api_last_checked")
     api_reachable = st.session_state.get("api_reachable", None)
 
+    # Check status at most once every 10 seconds to prevent Streamlit UI from blocking
+    if last_checked is None or (now - last_checked).total_seconds() > 10:
+        api_reachable = client.health_check(timeout=1.0)
+        st.session_state["api_reachable"] = api_reachable
+        st.session_state["api_last_checked"] = now
+        if api_reachable:
+            st.session_state["last_successful_sync"] = now
+
     if api_reachable is True:
-        dot_color, label, detail = STATUS_OK, "API Connected", "Live data active"
-    elif api_reachable is False:
-        dot_color, label, detail = STATUS_ERROR, "API Offline", "Using cached data"
+        dot_color, label, detail = STATUS_OK, "Backend Connected", "Live data active"
     else:
-        dot_color, label, detail = STATUS_WARNING, "Stub Mode", "Day 2 skeleton"
+        dot_color, label, detail = STATUS_ERROR, "Backend Offline", "Using stub fallback data"
 
     st.markdown(
         f"""
@@ -175,7 +186,14 @@ def _render_api_status() -> None:
         unsafe_allow_html=True,
     )
 
-    # Data freshness — placeholder until Day 3 supplies real timestamps
+    # Data freshness status (uses last successful sync time)
+    last_sync = st.session_state.get("last_successful_sync")
+    if last_sync:
+        freshness_time = last_sync.strftime("%Y-%m-%d %H:%M:%S")
+        freshness_detail = f"⏱ Updated: {freshness_time}<br><span style='font-size:0.7rem'>Sync successful</span>"
+    else:
+        freshness_detail = "⏱ No live data yet<br><span style='font-size:0.7rem'>Awaiting connection</span>"
+
     st.markdown(
         f"""
         <div style="padding:6px 4px 2px">
@@ -186,8 +204,7 @@ def _render_api_status() -> None:
           <div style="font-size:0.75rem;color:{TEXT_MUTED};
                       padding:6px 10px;background:{BG_ELEVATED};
                       border-radius:8px;border:1px solid {BORDER_DEFAULT}">
-            ⏱ No live data yet<br>
-            <span style="font-size:0.7rem">Awaiting Day 3 API integration</span>
+            {freshness_detail}
           </div>
         </div>
         """,

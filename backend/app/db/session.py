@@ -47,6 +47,7 @@ async_engine: AsyncEngine = create_async_engine(
     echo=_settings.DEBUG,         # Logs all SQL when DEBUG=True; off in production
     pool_size=5,                   # Baseline connections kept open
     max_overflow=15,               # Additional connections under burst load (total: 20)
+    pool_timeout=30,               # Timeout waiting for a connection from the pool (seconds)
     pool_pre_ping=True,            # Validate connections before checkout
     pool_recycle=3600,             # Recycle connections every hour
     connect_args={
