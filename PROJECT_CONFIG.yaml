@@ -1,0 +1,48 @@
+project:
+  name: VAYU-DRISHTI
+  version: 0.2.0
+  profile: flagship
+  framework:
+  - FastAPI
+  - Streamlit
+  languages:
+  - Python
+  owner: lead-engineer
+  deadline: '2026-12-31'
+  status: IN_PROGRESS
+enabled_features:
+  standards:
+  - code_quality
+  - testing
+  - documentation
+  - security
+  - ai_ml
+  - research
+  - api_design
+  - data_engineering
+  - ui_ux
+  agents:
+  - orchestrator
+  - chief-architect
+  - planner
+  - ai-reviewer
+  - science-reviewer
+  - security-reviewer
+  - performance-reviewer
+  - ui-reviewer
+  - qa-reviewer
+  - docs-reviewer
+  - release-reviewer
+  quality_gates:
+  - QG-001
+  - QG-002
+  - QG-003
+  - QG-004
+  - QG-005
+  - QG-006
+  - QG-007
+  - QG-008
+  metrics:
+  - quality
+  - performance
+  - benchmarks

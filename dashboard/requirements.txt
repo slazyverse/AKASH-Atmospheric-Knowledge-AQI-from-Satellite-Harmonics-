@@ -1,0 +1,20 @@
+# VAYU-DRISHTI Dashboard — Python Dependencies
+#
+# Pinned for reproducible builds. Compatible with the backend's Python >=3.11.
+# Dashboard dependencies are intentionally separate from backend/requirements.txt
+# so the dashboard can be deployed independently (e.g., Streamlit Cloud).
+#
+# Dependency justifications:
+#   streamlit       — Interactive data dashboard framework
+#   pyyaml          — Parse PROJECT_CONFIG.yaml from the repo root
+#   requests        — HTTP client for future backend API consumption (Day 3+)
+#   pandas          — Tabular data manipulation for AQI readings and time series
+#   plotly          — Interactive charts (AQI trends, forecast bands, HCHO heatmaps)
+#   python-dotenv   — Load .env for DASHBOARD_API_URL in local development
+
+streamlit>=1.35.0
+pyyaml>=6.0.1
+requests>=2.32.3
+pandas>=2.2.2
+plotly>=5.22.0
+python-dotenv>=1.0.1

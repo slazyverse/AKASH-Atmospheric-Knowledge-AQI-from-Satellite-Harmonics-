@@ -1,0 +1,24 @@
+# VAYU-DRISHTI Backend — Development & Test Dependencies
+#
+# Install via: pip install -r requirements.txt -r requirements-dev.txt
+#
+# Dependency justifications:
+#   pytest             — Test runner
+#   pytest-asyncio     — Async test coroutine support (required for async FastAPI routes)
+#   httpx              — Async HTTP client used by FastAPI's TestClient and direct ASGI testing
+#   anyio[trio]        — Async test backend provider for pytest-asyncio
+#   ruff               — Fast linter (replaces flake8 + isort + many plugins)
+#   black              — Opinionated code formatter
+#   mypy               — Static type checker
+#   pydantic[mypy]     — Mypy plugin for pydantic model type inference
+#   coverage           — Code coverage measurement
+
+pytest==8.2.2
+pytest-asyncio==0.23.7
+httpx==0.27.0
+anyio[trio]==4.4.0
+ruff==0.4.9
+black==24.4.2
+mypy==1.10.0
+pydantic[mypy]==2.7.4
+coverage[toml]==7.5.3

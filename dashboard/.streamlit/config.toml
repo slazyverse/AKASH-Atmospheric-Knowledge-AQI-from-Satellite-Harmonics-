@@ -1,0 +1,23 @@
+[theme]
+# VAYU-DRISHTI — Scientific Geospatial Analytics Dashboard
+# Design system: dark mode, teal-cyan primary, neutral grey surfaces
+primaryColor        = "#00BFA5"        # Teal-cyan: conveys clean air / data clarity
+backgroundColor     = "#0D1117"        # Deep dark: reduces eye strain for long analytics sessions
+secondaryBackgroundColor = "#161B22"   # Slightly lighter for card surfaces
+textColor           = "#E6EDF3"        # Soft white: legible on dark backgrounds
+font                = "sans serif"
+
+[server]
+# Disable file watcher in production deployments; keep on in dev
+runOnSave           = false
+headless            = true
+enableCORS          = false
+enableXsrfProtection = true
+
+[browser]
+gatherUsageStats    = false
+serverAddress       = "localhost"
+serverPort          = 8501
+
+[runner]
+fastReruns          = true

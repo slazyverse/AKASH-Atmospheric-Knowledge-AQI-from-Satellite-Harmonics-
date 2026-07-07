@@ -1,0 +1,33 @@
+# VAYU-DRISHTI Backend — Production Dependencies
+#
+# Pinned to exact patch versions for reproducible builds.
+# Update via: pip-compile requirements.in --upgrade
+#
+# Dependency justifications:
+#   fastapi           — Async web framework with OpenAPI/Swagger, Pydantic v2 native
+#   uvicorn[standard] — ASGI server; [standard] includes uvloop (faster event loop on Linux)
+#   pydantic          — Data validation and serialisation (v2 required for performance)
+#   pydantic-settings — Env-var config management backed by Pydantic models
+#   sqlalchemy        — ORM and query builder; [asyncio] extra enables async engine support
+#   asyncpg           — High-performance native asyncio PostgreSQL driver.
+#                       Used by BOTH the application runtime AND Alembic migrations.
+#                       psycopg2 is NOT required — Alembic runs migrations via
+#                       asyncio.run() + create_async_engine(), eliminating the need
+#                       for a second synchronous DBAPI driver.
+#   alembic           — Database schema migration framework (Schema-as-code)
+#   GeoAlchemy2       — PostGIS geometry/geography types for SQLAlchemy
+#   structlog         — Structured JSON logging with context variable support
+#   python-dotenv     — .env file loader (pydantic-settings delegates to this)
+#   python-multipart  — Required by FastAPI for form and file upload parsing
+
+fastapi==0.111.0
+uvicorn[standard]==0.30.1
+pydantic==2.7.4
+pydantic-settings==2.3.1
+sqlalchemy[asyncio]==2.0.30
+asyncpg==0.29.0
+alembic==1.13.1
+GeoAlchemy2==0.15.1
+structlog==24.2.0
+python-dotenv==1.0.1
+python-multipart==0.0.9

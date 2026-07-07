@@ -1,0 +1,122 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# VAYU-DRISHTI — Local Development Stack
+#
+# Services:
+#   db  — PostgreSQL 16 with PostGIS 3.4 extension
+#   api — VAYU-DRISHTI FastAPI backend (built from Dockerfile)
+#
+# Usage:
+#   docker compose up -d                           # Start all services
+#   docker compose exec api alembic upgrade head   # Apply migrations (first run)
+#   docker compose logs -f api                     # Stream API logs
+#   docker compose down -v                         # Stop + delete volumes
+#
+# Startup sequence (important):
+#   1. 'docker compose up -d' starts the DB and API.
+#   2. The DB service healthcheck ensures PostgreSQL is accepting connections
+#      before the API container starts (depends_on: condition: service_healthy).
+#   3. After first start, run migrations manually:
+#         docker compose exec api alembic upgrade head
+#      Or set RUN_MIGRATIONS=true in .env to auto-migrate on container start.
+#
+# PostGIS extensions:
+#   Previously enabled via ./docker/init-db.sql mounted into
+#   /docker-entrypoint-initdb.d/. That approach ran only on fresh container
+#   creation and was outside Alembic's version history.
+#   Extensions are now enabled by the first Alembic migration
+#   (alembic/versions/20260706_0000_*_enable_postgis_extensions.py).
+#   The init-db.sql volume mount has been removed.
+#
+# Production notes:
+#   - init: true adds Docker's built-in init process (tini) as PID 1 in the
+#     api container. Tini reaps zombie processes and forwards signals correctly.
+#     Combined with entrypoint.sh's 'exec uvicorn', this ensures SIGTERM is
+#     delivered to uvicorn for graceful shutdown.
+#   - Remove the app/ volume mount in production — it is present here for
+#     development hot-reload only.
+#
+# Future services:
+#   redis  — Caching and rate limiting (Day N+)
+#   celery — Background task worker for sensor data ingestion
+# ──────────────────────────────────────────────────────────────────────────────
+
+name: vayu-drishti
+
+services:
+
+  # ── PostgreSQL + PostGIS ─────────────────────────────────────────────────────
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: vayu_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vayu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vayu_password}
+      POSTGRES_DB: ${POSTGRES_DB:-vayu_drishti}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      # Named volume ensures data survives 'docker compose down'
+      - vayu_postgres_data:/var/lib/postgresql/data
+      # Note: init-db.sql removed — PostGIS extensions are now enabled by
+      # the first Alembic migration (idempotent, version-controlled).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vayu} -d ${POSTGRES_DB:-vayu_drishti}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - vayu_network
+
+  # ── FastAPI Backend ───────────────────────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: vayu_api
+    restart: unless-stopped
+    # init: true adds Docker's tini init process as PID 1.
+    # tini reaps zombie child processes and forwards SIGTERM/SIGINT to the
+    # uvicorn child. Combined with entrypoint.sh 'exec uvicorn', this provides
+    # belt-and-suspenders signal propagation for graceful shutdown.
+    init: true
+    env_file:
+      - .env
+    environment:
+      # Override DB host to use Docker internal service DNS
+      POSTGRES_HOST: db
+      # Human-readable logs during local development; use 'json' in production
+      LOG_FORMAT: console
+      # Set to 'true' to auto-run 'alembic upgrade head' before server start.
+      # For production, prefer a dedicated migration job/init-container.
+      RUN_MIGRATIONS: ${RUN_MIGRATIONS:-false}
+    ports:
+      - "${PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      # Mount application code for hot-reload during local development.
+      # REMOVE this volume mount in production images.
+      - ./app:/app/app:ro
+    networks:
+      - vayu_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+# ── Volumes ───────────────────────────────────────────────────────────────────
+volumes:
+  vayu_postgres_data:
+    driver: local
+
+# ── Networks ──────────────────────────────────────────────────────────────────
+networks:
+  vayu_network:
+    driver: bridge
