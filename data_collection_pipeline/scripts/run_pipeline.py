@@ -70,6 +70,11 @@ def main_cli():
         action="store_true",
         help="Execute only the Day 3 feature engineering and dataset integration pipeline."
     )
+    group.add_argument(
+        "--prepare-dataset",
+        action="store_true",
+        help="Execute the Day 4A dataset preparation pipeline."
+    )
     
     args = parser.parse_args()
     
@@ -123,6 +128,47 @@ def main_cli():
             sys.exit(0)
         logger.error("Feature Engineering & Dataset Integration encountered errors.")
         sys.exit(1)
+
+    elif args.prepare_dataset:
+        logger.info("Running Day 4A Dataset Preparation pipeline...")
+        from data_collection_pipeline.dataset_preparation import dataset_validator, dataset_builder, reporting
+        import json
+        
+        # 1. Dataset Validation
+        logger.info("Step 1/4: Dataset Validation")
+        val_summary = dataset_validator.validate_merged_table()
+        if val_summary.get("validation_status") == "FAILED":
+            logger.error("Dataset validation failed. Halting dataset preparation.")
+            sys.exit(1)
+            
+        # 2. Feature-Target Collocation & 3. Dataset Builder
+        logger.info("Step 2/4 and 3/4: Feature-Target Collocation & Dataset Builder")
+        df, X, y = dataset_builder.build_analysis_dataset()
+        
+        # 4. Reporting
+        logger.info("Step 4/4: Reporting")
+        output_dir = Path(config.DATASET_OUTPUT_DIRECTORY)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        df.to_csv(output_dir / "analysis_ready_dataset.csv", index=False)
+        logger.info("Generated analysis_ready_dataset.csv")
+        
+        summary = reporting.generate_dataset_summary(df, X, y)
+        with open(output_dir / "dataset_summary.json", "w") as f:
+            json.dump(summary, f, indent=4)
+        logger.info("Generated dataset_summary.json")
+            
+        stats_df = reporting.generate_feature_statistics(X)
+        stats_df.to_csv(output_dir / "feature_statistics.csv")
+        logger.info("Generated feature_statistics.csv")
+        
+        report_md = reporting.generate_quality_report(summary, stats_df)
+        with open(output_dir / "dataset_quality_report.md", "w") as f:
+            f.write(report_md)
+        logger.info("Generated dataset_quality_report.md")
+        
+        logger.info("Dataset Preparation execution completed successfully.")
+        sys.exit(0)
             
     else:
         # Run entire pipeline

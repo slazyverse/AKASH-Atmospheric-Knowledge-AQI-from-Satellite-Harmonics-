@@ -225,3 +225,38 @@ MISSING_VALUE_STRATEGY=leave_missing
 
 Supported values are `interpolation`, `forward_fill`, `station_median`, and
 `leave_missing`. Rows are not silently removed by missing-data handling.
+
+---
+
+## Day 4A Dataset Preparation Workflow
+
+Run the Day 4A Dataset Preparation workflow after Day 3 integration has generated the `features/merged_feature_table.csv`:
+
+```bash
+python scripts/run_pipeline.py --prepare-dataset
+```
+
+The dataset preparation pipeline executes the following stages in order:
+1. **Dataset Validation**: Validates schema, timestamps, missing values, duplicates, and physical limits.
+2. **Feature-Target Collocation**: Applies spatial and temporal tolerances to align predictors with the target.
+3. **Dataset Builder**: Extracts and formats the final Feature Matrix and Target Vector.
+4. **Reporting**: Generates the final output files and descriptive statistics.
+
+### Day 4A Outputs
+
+- `analysis_ready_dataset.csv` - The final, validated, collocated dataset.
+- `dataset_summary.json` - High-level summary of the dataset.
+- `feature_statistics.csv` - Detailed descriptive statistics for features.
+- `dataset_quality_report.md` - A formatted markdown summary of data quality.
+
+These output files are saved to the folder defined by `DATASET_OUTPUT_DIRECTORY` (defaults to the workspace root).
+
+### Configuration
+
+You can configure Day 4A behavior by setting the following environment variables:
+
+- `DATASET_OUTPUT_DIRECTORY`: Directory for final outputs.
+- `REQUIRED_TARGET_COLUMN`: The name of the target column (default: `AQI`).
+- `REQUIRED_FEATURE_COLUMNS`: Comma-separated list of required features.
+- `TEMPORAL_TOLERANCE_HOURS`: Tolerance for time matching (default: `1.0`).
+- `SPATIAL_TOLERANCE_KM`: Tolerance for spatial matching (default: `50.0`).

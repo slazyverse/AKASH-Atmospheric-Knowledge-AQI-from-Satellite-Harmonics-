@@ -50,3 +50,10 @@ BACKOFF_FACTOR = 2.0  # multiplier for exponential backoff
 
 # Logging configuration file path
 LOG_FILE_PATH = LOG_DIR / "data_collection.log"
+
+# Day 4 Dataset Preparation defaults
+DATASET_OUTPUT_DIRECTORY = Path(os.getenv("DATASET_OUTPUT_DIRECTORY", str(BASE_DIR)))
+REQUIRED_TARGET_COLUMN = os.getenv("REQUIRED_TARGET_COLUMN", "AQI")
+REQUIRED_FEATURE_COLUMNS = os.getenv("REQUIRED_FEATURE_COLUMNS", "").split(",") if os.getenv("REQUIRED_FEATURE_COLUMNS") else []
+TEMPORAL_TOLERANCE_HOURS = float(os.getenv("TEMPORAL_TOLERANCE_HOURS", "1.0"))
+SPATIAL_TOLERANCE_KM = float(os.getenv("SPATIAL_TOLERANCE_KM", "50.0"))
