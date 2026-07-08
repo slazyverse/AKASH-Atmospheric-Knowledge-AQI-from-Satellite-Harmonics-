@@ -301,7 +301,7 @@ class APIClient:
 
     def health_check(self, timeout: float | None = None) -> bool:
         """
-        Probe the backend health endpoint and return True if reachable and healthy.
+        Probe the backend health/version endpoint and return True if reachable and healthy.
 
         This method is intentionally silent — it never raises. The sidebar
         calls it on every Streamlit rerun and must not crash the app if the
@@ -312,7 +312,9 @@ class APIClient:
             False — any network error, timeout, or non-2xx response.
         """
         try:
-            resp = self.get("/health", timeout=timeout)
+            # Query /version instead of /health because /health returns 503 when the local 
+            # database is down, even though the backend service is fully alive and serving mock data.
+            resp = self.get("/version", timeout=timeout)
             return resp.is_ok
         except APIError:
             return False

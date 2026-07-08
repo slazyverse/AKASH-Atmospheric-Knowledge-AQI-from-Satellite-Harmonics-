@@ -219,7 +219,7 @@ def _render_sidebar_footer() -> None:
         <div style="padding:8px 4px;font-size:0.68rem;color:{TEXT_MUTED}">
           <div>📡 VAYU-DRISHTI Platform</div>
           <div style="margin-top:4px">Environment: <strong>Development</strong></div>
-          <div style="margin-top:4px">Sprint: <strong>Day 2 — Dashboard</strong></div>
+          <div style="margin-top:4px">Sprint: <strong>Day 4 — Charts & GIS Maps</strong></div>
           <div style="margin-top:8px;color:{TEXT_MUTED}">
             © 2026 AKASH Project Team
           </div>

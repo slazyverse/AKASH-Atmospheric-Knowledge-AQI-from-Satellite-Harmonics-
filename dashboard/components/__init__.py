@@ -24,6 +24,26 @@ from dashboard.components.loading import (
 )
 from dashboard.components.sidebar import render_sidebar
 
+# GIS Maps
+from dashboard.components.map import (
+    render_aqi_spatial_map,
+    render_hcho_spatial_map,
+    render_fire_spatial_map,
+    render_forecast_coverage_map,
+)
+
+# Plotly Charts
+from dashboard.components.charts import (
+    render_aqi_time_series,
+    render_pollutant_trend_comparison,
+    render_aqi_category_distribution,
+    render_daily_hcho_trend,
+    render_forecast_line_chart,
+    render_fire_count_timeline,
+    render_source_attribution_donut,
+    render_shap_waterfall_chart,
+)
+
 __all__ = [
     # Sidebar
     "render_sidebar",
@@ -47,4 +67,18 @@ __all__ = [
     "render_no_results",
     "render_coming_soon",
     "render_stub_badge",
+    # GIS Maps
+    "render_aqi_spatial_map",
+    "render_hcho_spatial_map",
+    "render_fire_spatial_map",
+    "render_forecast_coverage_map",
+    # Plotly Charts
+    "render_aqi_time_series",
+    "render_pollutant_trend_comparison",
+    "render_aqi_category_distribution",
+    "render_daily_hcho_trend",
+    "render_forecast_line_chart",
+    "render_fire_count_timeline",
+    "render_source_attribution_donut",
+    "render_shap_waterfall_chart",
 ]

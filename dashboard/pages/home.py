@@ -271,9 +271,9 @@ def _render_sprint_progress() -> None:
     days = [
         ("Day 1", "Backend Foundation",    "✅ Complete", AQI_GOOD,    "FastAPI, PostgreSQL, Pydantic Settings, Health/Version endpoints"),
         ("Day 2", "Dashboard Skeleton",     "✅ Complete", AQI_GOOD,    "Streamlit layout, 7-module navigation, service interfaces, stub pages"),
-        ("Day 3", "API Integration",        "✅ Complete", AQI_GOOD,    "Live backend data, map layers, real AQI charts"),
-        ("Day 4", "ML Model Integration",   "🔜 Next",     PRIMARY,     "XGBoost forecasting, SHAP explanations, model metrics"),
-        ("Day 5", "GIS Visualisation",      "⏳ Planned",  TEXT_MUTED,  "Folium/Deck.gl satellite imagery overlays"),
+        ("Day 3", "API Integration",        "✅ Complete", AQI_GOOD,    "Live backend data, real AQI charts, API client + caching"),
+        ("Day 4", "Charts + GIS Maps",      "✅ Complete", AQI_GOOD,    "Plotly charts, Folium GIS maps, COG architecture, XAI SHAP chart"),
+        ("Day 5", "ML + Satellite Ingest",  "⏳ Planned",  TEXT_MUTED,  "XGBoost pipeline, S5P COG ingestion, Kriging interpolation"),
         ("Day 6", "Reports & Export",       "⏳ Planned",  TEXT_MUTED,  "PDF generation, scheduled emails, CSV exports"),
         ("Day 7", "Production Hardening",   "⏳ Planned",  TEXT_MUTED,  "Auth, rate limiting, monitoring, CI/CD"),
     ]

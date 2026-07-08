@@ -16,6 +16,7 @@ SOLID compliance:
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+from typing import Any
 
 from app.core.logging import get_logger
 from app.schemas.aqi import AQIDailyListResponse, AQIDailySummary, StationReading
@@ -24,7 +25,7 @@ logger = get_logger(__name__)
 
 # ── Realistic stub data (replaced by DB queries in a future sprint) ────────────
 
-_STUB_READINGS: list[dict] = [
+_STUB_READINGS: list[dict[str, Any]] = [
     {
         "station_id": "DL001", "station_name": "Delhi – Anand Vihar",
         "latitude": 28.6469, "longitude": 77.3164,

@@ -12,6 +12,7 @@ Day N: Replace with real-time NASA FIRMS API ingestion and PostGIS spatial queri
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 
 from app.core.logging import get_logger
 from app.schemas.fire import FireAlertItem, FireEventItem, FireResponse
@@ -20,7 +21,7 @@ logger = get_logger(__name__)
 
 # ── Realistic stub data ────────────────────────────────────────────────────────
 
-_STUB_EVENTS: list[dict] = [
+_STUB_EVENTS: list[dict[str, Any]] = [
     {
         "event_id": "F-2024-001",
         "latitude": 23.312, "longitude": 85.334,
@@ -58,7 +59,7 @@ _STUB_EVENTS: list[dict] = [
     },
 ]
 
-_STUB_ALERTS: list[dict] = [
+_STUB_ALERTS: list[dict[str, Any]] = [
     {
         "alert_id": "A-001",
         "fire_event_id": "F-2024-001",

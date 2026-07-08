@@ -9,6 +9,8 @@ Day 3/4 Scope: Plotly SHAP waterfall chart, LIME explanation, interactive what-i
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import streamlit as st
 
@@ -16,6 +18,7 @@ from dashboard.components.empty_state import render_coming_soon, render_stub_bad
 from dashboard.components.error_state import render_info_notice
 from dashboard.components.footer import render_page_footer
 from dashboard.components.header import render_page_header
+from dashboard.components.charts import render_shap_waterfall_chart
 from dashboard.core.theme import (
     ACCENT_ORANGE,
     AQI_GOOD,
@@ -37,39 +40,39 @@ def render() -> None:
     )
 
     render_info_notice(
-        "XAI features require the ML model (Day 4). "
-        "SHAP and counterfactual displays show stub data today."
+        "Day 4 Complete: SHAP waterfall chart is now implemented. "
+        "All XAI features display live stub data from the forecast model."
     )
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
-    # ── XAI Methodology Explainer ─────────────────────────────────────────────
+    # ── XAI Methodology Explainer ──────────────────────────────────────────────────────────────────────────────────
     _render_xai_explainer()
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # ── Prediction selector ───────────────────────────────────────────────────
+    # ── Prediction selector ──────────────────────────────────────────────────────────────────────────────────────────
     _render_controls()
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
-    # ── SHAP Values ───────────────────────────────────────────────────────────
+    # ── Single data fetch for SHAP explanation ──────────────────────────────────────────────────────────────────────
+    explanation = xai_service.get_shap_values("PRED-001")
+
+    # ── SHAP Values ──────────────────────────────────────────────────────────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>🔬 SHAP Feature Contributions</h4>", unsafe_allow_html=True)
-    render_stub_badge()
 
     left, right = st.columns([2, 3])
     with left:
-        _render_shap_table()
+        _render_shap_table(explanation)
     with right:
-        render_coming_soon(
-            "SHAP Waterfall Chart",
-            planned_day="Day 4",
-            features=[
-                "Waterfall plot showing each feature's AQI contribution",
-                "Positive contributions (red) vs. negative (blue)",
-                "Base value + individual SHAP sum = final prediction",
-            ],
-        )
+        if explanation:
+            render_shap_waterfall_chart(
+                shap_values=explanation.shap_values,
+                base_value=explanation.base_value,
+                predicted_aqi=explanation.predicted_aqi,
+                title=f"SHAP Contributions — {explanation.station_id} (AQI {explanation.predicted_aqi:.0f})",
+            )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
@@ -113,13 +116,12 @@ def _render_xai_explainer() -> None:
 def _render_controls() -> None:
     c1, c2 = st.columns([3, 2])
     with c1:
-        st.selectbox("📍 Prediction", ["Delhi – Anand Vihar (AQI 312, 2024-01-15 14:00)"], key="xai_prediction")
+        st.selectbox("📌 Prediction", ["Delhi – Anand Vihar (AQI 312, 2024-01-15 14:00)"], key="xai_prediction")
     with c2:
-        st.selectbox("🔬 XAI Method", ["SHAP", "LIME", "Counterfactual"], key="xai_method")
+        st.selectbox("⚖️ XAI Method", ["SHAP", "LIME", "Counterfactual"], key="xai_method")
 
 
-def _render_shap_table() -> None:
-    explanation = xai_service.get_shap_values("PRED-001")
+def _render_shap_table(explanation: Any) -> None:
     if not explanation:
         return
 
