@@ -25,3 +25,11 @@ feature_importance.csv
 data_collection_pipeline/logs/
 data_collection_pipeline/raw_data/
 data_collection_pipeline/processed_data/
+
+# Day 3 generated outputs
+data_collection_pipeline/features/
+data_collection_pipeline/metadata/
+
+# Production validation outputs
+production_validation/
+

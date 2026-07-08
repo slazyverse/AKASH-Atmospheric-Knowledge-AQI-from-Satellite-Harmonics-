@@ -75,6 +75,11 @@ def main_cli():
         action="store_true",
         help="Execute the Day 4A dataset preparation pipeline."
     )
+    group.add_argument(
+        "--run-ml-pipeline",
+        action="store_true",
+        help="Execute the Day 4B ML pipeline (Preparation, Split, Training, Evaluation)."
+    )
     
     args = parser.parse_args()
     
@@ -168,6 +173,104 @@ def main_cli():
         logger.info("Generated dataset_quality_report.md")
         
         logger.info("Dataset Preparation execution completed successfully.")
+        sys.exit(0)
+        
+    elif args.run_ml_pipeline:
+        logger.info("Running Day 4B ML Pipeline Integration...")
+        from data_collection_pipeline.dataset_preparation import dataset_validator, dataset_builder, reporting
+        from data_collection_pipeline.model_preparation import dataset_splitter
+        from data_collection_pipeline.model_training import baseline_model
+        from data_collection_pipeline.model_evaluation import evaluator
+        import json
+        
+        output_dir = Path(config.DATASET_OUTPUT_DIRECTORY)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 1. Dataset Preparation
+        logger.info("--- Stage 1: Dataset Preparation ---")
+        val_summary = dataset_validator.validate_merged_table()
+        if val_summary.get("validation_status") == "FAILED":
+            logger.error("Dataset validation failed. Halting ML pipeline.")
+            sys.exit(1)
+            
+        try:
+            df, X, y = dataset_builder.build_analysis_dataset()
+            dataset_path = output_dir / "analysis_ready_dataset.csv"
+            df.to_csv(dataset_path, index=False)
+            
+            summary = reporting.generate_dataset_summary(df, X, y)
+            with open(output_dir / "dataset_summary.json", "w") as f:
+                json.dump(summary, f, indent=4)
+                
+            stats_df = reporting.generate_feature_statistics(X)
+            stats_df.to_csv(output_dir / "feature_statistics.csv")
+            
+            report_md = reporting.generate_quality_report(summary, stats_df)
+            with open(output_dir / "dataset_quality_report.md", "w") as f:
+                f.write(report_md)
+        except Exception as e:
+            logger.error(f"Dataset preparation failed: {e}")
+            sys.exit(1)
+            
+        # 2. Chronological Dataset Split
+        logger.info("--- Stage 2: Chronological Dataset Split ---")
+        try:
+            df_loaded = dataset_splitter.load_analysis_dataset(dataset_path)
+            target_col = baseline_model.select_target_column(df_loaded)
+            target = dataset_splitter.identify_target_column(df_loaded, target_name=target_col)
+            df_clean = dataset_splitter.remove_invalid_rows(df_loaded, target)
+            features = dataset_splitter.identify_feature_columns(df_clean, target)
+            train_df, val_df, test_df, split_summary = dataset_splitter.chronological_split(
+                df_clean, 
+                train_ratio=config.TRAIN_RATIO, 
+                val_ratio=config.VALIDATION_RATIO, 
+                test_ratio=config.TEST_RATIO
+            )
+            dataset_splitter.export_datasets(train_df, val_df, test_df, split_summary, config.DATASET_OUTPUT_DIRECTORY)
+        except Exception as e:
+            logger.error(f"Chronological split failed: {e}")
+            sys.exit(1)
+            
+        # 3. Baseline Model Training
+        logger.info("--- Stage 3: Baseline Model Training ---")
+        try:
+            train_file = output_dir / "train_dataset.csv"
+            df_train = baseline_model.load_training_data(train_file)
+            target_col = baseline_model.select_target_column(df_train)
+            X_train, y_train, feature_cols = baseline_model.prepare_training_features(df_train, target_col)
+            model = baseline_model.train_baseline_model(X_train, y_train)
+            training_summary = {
+                "dataset_size": len(X_train),
+                "feature_count": len(feature_cols),
+                "target_column": target_col,
+                "status": "completed"
+            }
+            baseline_model.save_trained_model(model, training_summary, config.MODEL_OUTPUT_PATH)
+        except Exception as e:
+            logger.error(f"Model training failed: {e}")
+            sys.exit(1)
+            
+        # 4. Model Evaluation
+        logger.info("--- Stage 4: Model Evaluation ---")
+        try:
+            val_file = output_dir / "validation_dataset.csv"
+            df_val = evaluator.load_validation_dataset(val_file)
+            target_col = baseline_model.select_target_column(df_val)
+            X_val, y_val, feature_cols = baseline_model.prepare_training_features(df_val, target_col)
+            
+            model_file = Path(config.MODEL_OUTPUT_PATH) / "baseline_model.joblib"
+            loaded_model = evaluator.load_trained_model(model_file)
+            
+            y_pred = evaluator.generate_predictions(loaded_model, X_val)
+            metrics = evaluator.calculate_regression_metrics(y_val, y_pred)
+            importance_df = evaluator.calculate_feature_importance(loaded_model, feature_cols)
+            
+            evaluator.generate_evaluation_report(metrics, importance_df, config.EVALUATION_OUTPUT_PATH)
+        except Exception as e:
+            logger.error(f"Model evaluation failed: {e}")
+            sys.exit(1)
+            
+        logger.info("ML Pipeline Integration completed successfully.")
         sys.exit(0)
             
     else:

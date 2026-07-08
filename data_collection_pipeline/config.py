@@ -52,8 +52,16 @@ BACKOFF_FACTOR = 2.0  # multiplier for exponential backoff
 LOG_FILE_PATH = LOG_DIR / "data_collection.log"
 
 # Day 4 Dataset Preparation defaults
-DATASET_OUTPUT_DIRECTORY = Path(os.getenv("DATASET_OUTPUT_DIRECTORY", str(BASE_DIR)))
+DATASET_OUTPUT_DIRECTORY = Path(os.getenv("DATASET_OUTPUT_DIRECTORY", str(BASE_DIR.parent)))
 REQUIRED_TARGET_COLUMN = os.getenv("REQUIRED_TARGET_COLUMN", "AQI")
 REQUIRED_FEATURE_COLUMNS = os.getenv("REQUIRED_FEATURE_COLUMNS", "").split(",") if os.getenv("REQUIRED_FEATURE_COLUMNS") else []
 TEMPORAL_TOLERANCE_HOURS = float(os.getenv("TEMPORAL_TOLERANCE_HOURS", "1.0"))
 SPATIAL_TOLERANCE_KM = float(os.getenv("SPATIAL_TOLERANCE_KM", "50.0"))
+
+# Day 4B Machine Learning Pipeline defaults
+TRAIN_RATIO = float(os.getenv("TRAIN_RATIO", "0.70"))
+VALIDATION_RATIO = float(os.getenv("VALIDATION_RATIO", "0.15"))
+TEST_RATIO = float(os.getenv("TEST_RATIO", "0.15"))
+RANDOM_STATE = int(os.getenv("RANDOM_STATE", "42"))
+MODEL_OUTPUT_PATH = Path(os.getenv("MODEL_OUTPUT_PATH", str(BASE_DIR.parent)))
+EVALUATION_OUTPUT_PATH = Path(os.getenv("EVALUATION_OUTPUT_PATH", str(BASE_DIR.parent)))

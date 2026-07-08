@@ -260,3 +260,42 @@ You can configure Day 4A behavior by setting the following environment variables
 - `REQUIRED_FEATURE_COLUMNS`: Comma-separated list of required features.
 - `TEMPORAL_TOLERANCE_HOURS`: Tolerance for time matching (default: `1.0`).
 - `SPATIAL_TOLERANCE_KM`: Tolerance for spatial matching (default: `50.0`).
+
+---
+
+## Day 4B ML Pipeline Integration Workflow
+
+Run the Day 4B Machine Learning Pipeline Integration workflow to execute the full end-to-end ML process:
+
+```bash
+python scripts/run_pipeline.py --run-ml-pipeline
+```
+
+The ML pipeline executes the following stages in sequential order, halting immediately if any stage fails:
+1. **Dataset Preparation**: Generates `analysis_ready_dataset.csv` and summary reports.
+2. **Chronological Dataset Split**: Splits the dataset sequentially into training, validation, and testing sets.
+3. **Baseline Model Training**: Trains a `RandomForestRegressor` on the training data and saves the model.
+4. **Model Evaluation**: Evaluates the model against the validation set and generates performance metrics.
+
+### Day 4B Outputs
+
+- `train_dataset.csv`, `validation_dataset.csv`, `test_dataset.csv`
+- `dataset_split_summary.json`
+- `baseline_model.joblib`
+- `model_training_summary.json`
+- `evaluation_metrics.json`
+- `feature_importance.csv`
+- `evaluation_report.md`
+
+These output files are saved to the folders defined by `DATASET_OUTPUT_DIRECTORY`, `MODEL_OUTPUT_PATH`, and `EVALUATION_OUTPUT_PATH` (defaulting to the workspace root).
+
+### Configuration
+
+You can configure Day 4B behavior by setting the following environment variables:
+
+- `TRAIN_RATIO`: Ratio of data used for training (default: `0.70`).
+- `VALIDATION_RATIO`: Ratio of data used for validation (default: `0.15`).
+- `TEST_RATIO`: Ratio of data used for testing (default: `0.15`).
+- `RANDOM_STATE`: Random state for reproducible operations (default: `42`).
+- `MODEL_OUTPUT_PATH`: Directory for saving trained models.
+- `EVALUATION_OUTPUT_PATH`: Directory for evaluation reports.
