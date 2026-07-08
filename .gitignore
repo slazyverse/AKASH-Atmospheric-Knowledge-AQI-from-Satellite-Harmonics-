@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Models
+*.joblib
+
+# Generated datasets
+analysis_ready_dataset.csv
+train_dataset.csv
+validation_dataset.csv
+test_dataset.csv
+
+# Reports
+dataset_summary.json
+dataset_split_summary.json
+training_summary.json
+feature_statistics.csv
+dataset_quality_report.md
+evaluation_metrics.json
+evaluation_report.md
+feature_importance.csv
+
+# Pipeline outputs
+data_collection_pipeline/logs/
+data_collection_pipeline/raw_data/
+data_collection_pipeline/processed_data/
