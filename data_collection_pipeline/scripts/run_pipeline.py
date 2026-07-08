@@ -18,6 +18,7 @@ try:
         utils,
     )
     from data_collection_pipeline.data_cleaning import run_cleaning_pipeline
+    from data_collection_pipeline.feature_engineering import run_integration_pipeline
 except ImportError as e:
     print(f"ImportError: {e}")
     print("Ensure you are running the script with correct paths or within the workspace.")
@@ -64,6 +65,11 @@ def main_cli():
         action="store_true",
         help="Execute only the data cleaning and station validation pipeline."
     )
+    group.add_argument(
+        "--integrate-only",
+        action="store_true",
+        help="Execute only the Day 3 feature engineering and dataset integration pipeline."
+    )
     
     args = parser.parse_args()
     
@@ -107,6 +113,15 @@ def main_cli():
             logger.info("Data Cleaning & Validation execution completed successfully.")
             sys.exit(0)
         logger.error("Data Cleaning & Validation execution encountered errors.")
+        sys.exit(1)
+
+    elif args.integrate_only:
+        logger.info("Running Feature Engineering & Dataset Integration pipeline only...")
+        success = run_integration_pipeline()
+        if success:
+            logger.info("Feature Engineering & Dataset Integration completed successfully.")
+            sys.exit(0)
+        logger.error("Feature Engineering & Dataset Integration encountered errors.")
         sys.exit(1)
             
     else:

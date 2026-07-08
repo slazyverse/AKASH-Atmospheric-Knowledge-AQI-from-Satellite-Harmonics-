@@ -20,7 +20,8 @@ def init_workspace() -> None:
         config.PROCESSED_DATA_DIR,
         config.METADATA_DIR,
         config.LOG_DIR,
-        config.DOCUMENTATION_DIR
+        config.DOCUMENTATION_DIR,
+        config.FEATURES_DIR,
     ]
     
     for directory in directories:

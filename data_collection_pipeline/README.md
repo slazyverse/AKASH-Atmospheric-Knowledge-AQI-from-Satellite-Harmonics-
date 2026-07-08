@@ -155,3 +155,73 @@ Mismatched station values are not modified automatically. They are reported in `
 The cleaning pipeline writes `metadata/data_quality_report.csv` with rows before cleaning, rows after cleaning, missing values, duplicates removed, duplicate timestamps removed, negative pollutant values, outlier count, invalid coordinates, station metadata mismatches, cleaning timestamp, warnings, and errors.
 
 Cleaning and validation operations use the existing logger and append to `logs/data_collection.log`. Each operation logs the dataset, operation name, rows affected, warnings, errors, and execution time.
+
+---
+
+## Day 3 Feature Engineering & Dataset Integration
+
+Run the Day 3 integration workflow after Day 2 cleaning has generated
+`processed_data/cpcb_cleaned_latest.csv` and
+`metadata/validated_station_metadata.csv`:
+
+```bash
+python scripts/run_pipeline.py --integrate-only
+```
+
+The integration pipeline preserves raw and cleaned datasets. It loads cleaned
+CPCB observations, validated station metadata, satellite predictor grids when
+available, and ERA5 meteorology grids when available. If satellite or ERA5
+tabular grids are not present, it creates explicit placeholder interfaces so
+the ML-ready schema remains stable while missing percentages are documented.
+
+### Pipeline Flow
+
+```text
+processed_data/cpcb_cleaned_latest.csv
+        +
+metadata/validated_station_metadata.csv
+        +
+processed_data/satellite_predictors.csv (optional placeholder-backed input)
+        +
+processed_data/era5_meteorology.csv (optional placeholder-backed input)
+        |
+        v
+nearest-neighbour spatial matching
+        |
+configurable temporal alignment: nearest, hourly, daily_average
+        |
+missing handling: interpolation, forward_fill, station_median, leave_missing
+        |
+features/merged_feature_table.csv
+```
+
+### Day 3 Outputs
+
+- `features/merged_feature_table.csv`
+- `features/feature_dictionary.csv`
+- `features/feature_summary.json`
+- `features/integration_report.md`
+
+The merged feature table includes station keys, coordinates, date/time keys,
+pollutant features, meteorology features, satellite features, and derived
+calendar features. No ML models, AQI prediction, train/test split, scaling,
+feature selection, dashboard, or visualization is performed in Day 3.
+
+### Configuration
+
+Temporal alignment defaults to `nearest` and can be configured with:
+
+```env
+TEMPORAL_ALIGNMENT=nearest
+```
+
+Supported values are `nearest`, `hourly`, and `daily_average`.
+
+Missing-value handling defaults to `leave_missing` and can be configured with:
+
+```env
+MISSING_VALUE_STRATEGY=leave_missing
+```
+
+Supported values are `interpolation`, `forward_fill`, `station_median`, and
+`leave_missing`. Rows are not silently removed by missing-data handling.

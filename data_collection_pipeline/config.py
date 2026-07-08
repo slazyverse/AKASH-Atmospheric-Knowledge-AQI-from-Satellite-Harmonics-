@@ -14,6 +14,7 @@ PROCESSED_DATA_DIR = BASE_DIR / "processed_data"
 METADATA_DIR = BASE_DIR / "metadata"
 LOG_DIR = BASE_DIR / "logs"
 DOCUMENTATION_DIR = BASE_DIR / "documentation"
+FEATURES_DIR = BASE_DIR / "features"
 
 # API Keys & Credentials
 DATA_GOV_API_KEY = os.getenv("DATA_GOV_API_KEY", "")
@@ -37,6 +38,10 @@ ERA5_DEFAULT_VARIABLES = [
     "boundary_layer_height",
     "relative_humidity"
 ]
+
+# Day 3 feature integration defaults
+TEMPORAL_ALIGNMENT = os.getenv("TEMPORAL_ALIGNMENT", "nearest")
+MISSING_VALUE_STRATEGY = os.getenv("MISSING_VALUE_STRATEGY", "leave_missing")
 
 # Connection & Retry Policy
 HTTP_TIMEOUT = 30  # seconds
