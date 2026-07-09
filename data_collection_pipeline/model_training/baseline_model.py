@@ -114,9 +114,54 @@ def prepare_training_features(
     df_clean = df.dropna(subset=[target_col]).copy()
     y = df_clean[target_col]
     X = df_clean[actual_features]
-    
-    logger.info(f"Selected {len(actual_features)} features. Rows: {len(X)}")
-    return X, y, actual_features
+
+    # Remove columns that are completely null
+    total_features = len(X.columns)
+    all_null_cols = [col for col in X.columns if X[col].isna().all()]
+
+    if all_null_cols:
+        logger.info(f"Removing all-null feature columns: {all_null_cols}")
+        X = X.drop(columns=all_null_cols)
+
+    warnings = []
+    for col in X.columns:
+        if X[col].isna().all():
+            msg = f"Remaining column '{col}' is entirely NaN."
+            logger.warning(msg)
+            warnings.append(msg)
+
+    # Median imputation for remaining numeric columns
+    medians = X.median(numeric_only=True)
+    X = X.fillna(medians)
+
+    # Validation report
+    report_path = config.BASE_DIR.parent / "baseline_feature_validation_report.md"
+
+    report = f"""# Baseline Feature Validation Report
+
+    ## Summary
+    * Total Feature Count: {total_features}
+    * Retained Feature Count: {len(X.columns)}
+    * Removed Feature Count: {len(all_null_cols)}
+    * Imputation Strategy: Column Median
+
+    ## Removed Columns
+    {chr(10).join(f"* {c}" for c in all_null_cols) if all_null_cols else "* None"}
+
+    ## Warnings
+    {chr(10).join(f"* {w}" for w in warnings) if warnings else "* None"}
+    """
+
+    with open(report_path, "w", encoding="utf-8") as f:
+        f.write(report)
+
+    logger.info(f"Generated baseline feature validation report at {report_path}")
+
+    feature_cols = list(X.columns)
+
+    logger.info(f"Prepared {len(feature_cols)} features for training.")
+
+    return X, y, feature_cols
 
 
 def train_baseline_model(

@@ -69,3 +69,6 @@ production_model.joblib
 residual_analysis.csv
 error_metrics.json
 error_analysis_report.md
+
+# Baseline validation outputs
+baseline_feature_validation_report.md
