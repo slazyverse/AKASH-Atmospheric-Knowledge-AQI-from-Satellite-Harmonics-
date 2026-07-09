@@ -54,3 +54,11 @@ optimization_report.md
 # Production model outputs
 production_model_summary.json
 production_model_report.md
+
+# Explainability outputs
+feature_importance_detailed.csv
+local_feature_explanations.csv
+model_explainability_report.md
+
+# Production model artifact
+production_model.joblib
