@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.5.0] - 2026-07-09
+### Added
+* Random Forest Baseline in [baseline_model.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/model_training/baseline_model.py):
+  * Dynamic train/test split supporting temporal/chronological hold-out slicing.
+  * Hyperparameter configurations loaded from the central `config.py` module.
+  * Evaluation metrics (R², RMSE, MAE, and Mean Bias Error).
+  * Post-preprocessor feature importance mapping matching columns output by One-Hot Encoders.
+  * joblib serialization exporting fitted pipelines, summaries, metrics, and importances.
+* Dedicated unit/integration test suite in [test_random_forest.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/tests/test_random_forest.py).
+* Sprint-04B report in `docs/sprints/Sprint-04B.md`.
+
+### Changed
+* Refactored [cross_validator.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/model_validation/cross_validator.py) to load Random Forest hyperparameters from `config.py` central parameters to ensure testing parity.
+
+---
+
 ## [0.4.0] - 2026-07-09
 ### Added
 * Preprocessing Package in [preprocessing.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/feature_engineering/preprocessing.py):
