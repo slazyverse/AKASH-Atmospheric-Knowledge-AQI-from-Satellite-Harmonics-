@@ -45,3 +45,8 @@ model_comparison_report.md
 cross_validation_results.csv
 cross_validation_summary.json
 cross_validation_report.md
+
+# Hyperparameter optimization outputs
+optimization_results.csv
+best_model_parameters.json
+optimization_report.md
