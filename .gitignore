@@ -40,3 +40,8 @@ feature_selection_report.md
 model_comparison.csv
 model_ranking.csv
 model_comparison_report.md
+
+# Cross validation outputs
+cross_validation_results.csv
+cross_validation_summary.json
+cross_validation_report.md
