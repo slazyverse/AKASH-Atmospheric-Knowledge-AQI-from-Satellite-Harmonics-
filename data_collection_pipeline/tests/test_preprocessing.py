@@ -3,6 +3,7 @@ Unit tests for the new Preprocessing module and ML pipeline integrations.
 """
 
 import tempfile
+import json
 from pathlib import Path
 import pytest
 import pandas as pd

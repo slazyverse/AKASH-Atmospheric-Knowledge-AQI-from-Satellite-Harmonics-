@@ -23,6 +23,7 @@ from data_collection_pipeline.feature_engineering import (
     preprocess_target,
     build_preprocessing_pipeline
 )
+from data_collection_pipeline import config
 
 logger = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ def perform_cross_validation(X: pd.DataFrame, y: pd.Series, feature_cols: List[s
         ]),
         "Random Forest Regressor": Pipeline(steps=[
             ("preprocessor", preprocessor),
-            ("regressor", RandomForestRegressor(random_state=42))
+            ("regressor", RandomForestRegressor(**config.RANDOM_FOREST_PARAMS))
         ]),
         "Extra Trees Regressor": Pipeline(steps=[
             ("preprocessor", preprocessor),

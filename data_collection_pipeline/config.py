@@ -65,3 +65,15 @@ TEST_RATIO = float(os.getenv("TEST_RATIO", "0.15"))
 RANDOM_STATE = int(os.getenv("RANDOM_STATE", "42"))
 MODEL_OUTPUT_PATH = Path(os.getenv("MODEL_OUTPUT_PATH", str(BASE_DIR.parent)))
 EVALUATION_OUTPUT_PATH = Path(os.getenv("EVALUATION_OUTPUT_PATH", str(BASE_DIR.parent)))
+
+# Random Forest Hyperparameters
+RANDOM_FOREST_PARAMS = {
+    "n_estimators": int(os.getenv("RF_N_ESTIMATORS", "100")),
+    "max_depth": int(os.getenv("RF_MAX_DEPTH", "15")) if os.getenv("RF_MAX_DEPTH") else None,
+    "min_samples_split": int(os.getenv("RF_MIN_SAMPLES_SPLIT", "2")),
+    "min_samples_leaf": int(os.getenv("RF_MIN_SAMPLES_LEAF", "1")),
+    "max_features": os.getenv("RF_MAX_FEATURES", "sqrt"),
+    "random_state": RANDOM_STATE,
+    "n_jobs": -1
+}
+
