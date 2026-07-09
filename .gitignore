@@ -36,3 +36,7 @@ production_validation/
 feature_correlation.csv
 feature_ranking.csv
 feature_selection_report.md
+
+model_comparison.csv
+model_ranking.csv
+model_comparison_report.md
