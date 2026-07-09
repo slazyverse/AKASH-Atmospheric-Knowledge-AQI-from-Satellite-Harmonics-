@@ -33,3 +33,6 @@ data_collection_pipeline/metadata/
 # Production validation outputs
 production_validation/
 
+feature_correlation.csv
+feature_ranking.csv
+feature_selection_report.md
