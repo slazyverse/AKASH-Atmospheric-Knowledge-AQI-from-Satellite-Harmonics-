@@ -2,4 +2,11 @@ pandas>=2.0.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 cdsapi>=0.7.0
-earthengine-api>=0.1.350
+
+# ERA5 NetCDF processing (required by era5_processor.py)
+xarray>=2023.1.0
+netCDF4>=1.6.0
+scipy>=1.10.0
+
+# Sentinel-5P / MODIS satellite ingestion
+earthengine-api>=0.1.374

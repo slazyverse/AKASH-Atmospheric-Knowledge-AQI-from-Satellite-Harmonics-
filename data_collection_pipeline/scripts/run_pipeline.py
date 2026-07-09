@@ -12,6 +12,8 @@ try:
         config,
         cpcb_collector,
         era5_downloader,
+        era5_processor,
+        sentinel5p_collector,
         main,
         openaq_collector,
         setup,
@@ -80,6 +82,30 @@ def main_cli():
         action="store_true",
         help="Execute the Day 4B ML pipeline (Preparation, Split, Training, Evaluation)."
     )
+    group.add_argument(
+        "--process-era5",
+        action="store_true",
+        help=(
+            "Convert a downloaded ERA5 NetCDF file "
+            "(raw_data/era5_meteorological_india.nc) to "
+            "processed_data/era5_meteorology.csv for feature engineering."
+        ),
+    )
+    group.add_argument(
+        "--collect-satellite",
+        action="store_true",
+        help=(
+            "Collect Sentinel-5P TROPOMI and MODIS AOD data via Google Earth Engine "
+            "and write processed_data/satellite_predictors.csv."
+        ),
+    )
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Target date for satellite collection (used with --collect-satellite).",
+    )
     
     args = parser.parse_args()
     
@@ -132,6 +158,40 @@ def main_cli():
             logger.info("Feature Engineering & Dataset Integration completed successfully.")
             sys.exit(0)
         logger.error("Feature Engineering & Dataset Integration encountered errors.")
+        sys.exit(1)
+
+    elif args.process_era5:
+        logger.info("Running ERA5 NetCDF → CSV processor ...")
+        success = era5_processor.process_era5_netcdf()
+        if success:
+            logger.info(
+                "ERA5 processing complete.  "
+                "processed_data/era5_meteorology.csv is ready for feature engineering."
+            )
+            sys.exit(0)
+        logger.error(
+            "ERA5 processing failed.  "
+            "Verify that raw_data/era5_meteorological_india.nc exists "
+            "(run --era5-only --no-dry-run first)."
+        )
+        sys.exit(1)
+
+    elif args.collect_satellite:
+        logger.info("Running Sentinel-5P / MODIS satellite data collector ...")
+        success = sentinel5p_collector.collect_satellite_data(
+            date_str=getattr(args, "date", None)
+        )
+        if success:
+            logger.info(
+                "Satellite collection complete.  "
+                "processed_data/satellite_predictors.csv is ready for feature engineering."
+            )
+            sys.exit(0)
+        logger.error(
+            "Satellite data collection failed.  "
+            "Ensure GEE credentials are configured "
+            "(run: earthengine authenticate)."
+        )
         sys.exit(1)
 
     elif args.prepare_dataset:
