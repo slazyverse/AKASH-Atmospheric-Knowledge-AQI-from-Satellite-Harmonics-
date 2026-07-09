@@ -50,3 +50,7 @@ cross_validation_report.md
 optimization_results.csv
 best_model_parameters.json
 optimization_report.md
+
+# Production model outputs
+production_model_summary.json
+production_model_report.md

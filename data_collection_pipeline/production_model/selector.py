@@ -5,6 +5,14 @@ from typing import Any, Dict, Union
 
 import pandas as pd
 import numpy as np
+import joblib
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
+
+try:
+    from data_collection_pipeline import config
+except ImportError:
+    config = None
 
 logger = logging.getLogger(__name__)
 
@@ -211,6 +219,86 @@ def generate_model_selection_report(scores_df: pd.DataFrame, summary: Dict[str, 
     logger.info("All selection reports generated successfully.")
 
 
+def load_training_dataset(file_path: Union[str, Path]) -> pd.DataFrame:
+    """Loads the training dataset."""
+    logger.info(f"Loading training dataset from {file_path}")
+    path = Path(file_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Training dataset not found: {path}")
+    df = pd.read_csv(path)
+    return df
+
+
+def prepare_features(df: pd.DataFrame, target_column: str) -> pd.DataFrame:
+    """Prepares numerical features."""
+    logger.info(f"Preparing features (excluding target '{target_column}')")
+    numeric_df = df.select_dtypes(include=["number"]).copy()
+    if target_column in numeric_df.columns:
+        numeric_df = numeric_df.drop(columns=[target_column])
+    numeric_df = numeric_df.fillna(numeric_df.mean(numeric_only=True)).fillna(0.0)
+    return numeric_df
+
+
+def prepare_target(df: pd.DataFrame, target_column: str) -> pd.Series:
+    """Prepares the target variable."""
+    logger.info(f"Preparing target '{target_column}'")
+    if target_column not in df.columns:
+        raise ValueError(f"Target column '{target_column}' not found in dataset.")
+    y = df[target_column].copy()
+    y = y.fillna(y.mean()).fillna(0.0)
+    return y
+
+
+def serialize_production_model(summary: Dict[str, Any], workspace_dir: Union[str, Path]) -> None:
+    """Trains and serializes the selected production model."""
+    logger.info("Serializing the selected production model.")
+    out_path = Path(workspace_dir)
+    
+    selected_model_name = summary.get("Selected_Model", "Random Forest Regressor")
+    
+    # Load parameters
+    params_path = out_path / "best_model_parameters.json"
+    best_params = {}
+    if params_path.exists():
+        with open(params_path, "r", encoding="utf-8") as f:
+            all_params = json.load(f)
+            best_params = all_params.get(selected_model_name, {})
+            
+    # Instantiate model
+    if selected_model_name == "Linear Regression":
+        model = LinearRegression(**best_params)
+    elif selected_model_name == "Extra Trees Regressor":
+        model = ExtraTreesRegressor(random_state=42, **best_params)
+    elif selected_model_name == "Gradient Boosting Regressor":
+        model = GradientBoostingRegressor(random_state=42, **best_params)
+    else:
+        # Default fallback
+        model = RandomForestRegressor(random_state=42, **best_params)
+        
+    # Load data and fit
+    target_col = "PM2.5"
+    if config and hasattr(config, "REQUIRED_TARGET_COLUMN"):
+        target_col = getattr(config, "REQUIRED_TARGET_COLUMN")
+        
+    train_path = out_path / "train_dataset.csv"
+    if train_path.exists():
+        df_train = load_training_dataset(train_path)
+        if target_col not in df_train.columns and "PM2.5" in df_train.columns:
+            target_col = "PM2.5"
+            
+        X = prepare_features(df_train, target_col)
+        y = prepare_target(df_train, target_col)
+        
+        logger.info(f"Fitting {selected_model_name} on full training set before serialization.")
+        model.fit(X, y)
+        
+        model_path = out_path / "production_model.joblib"
+        joblib.dump(model, model_path)
+        logger.info(f"Successfully serialized production model to {model_path}")
+    else:
+        logger.error(f"Cannot serialize model: Training data not found at {train_path}")
+
+
 def run_production_model_selection(workspace_dir: Union[str, Path]) -> None:
     """Executes the complete production model selection pipeline."""
     logger.info("Starting production model selection pipeline.")
@@ -222,6 +310,7 @@ def run_production_model_selection(workspace_dir: Union[str, Path]) -> None:
     scores_df = score_candidate_models(comp_df, cv_df, opt_df)
     summary = select_production_model(scores_df)
     generate_model_selection_report(scores_df, summary, workspace_dir)
+    serialize_production_model(summary, workspace_dir)
 
 
 if __name__ == "__main__":
