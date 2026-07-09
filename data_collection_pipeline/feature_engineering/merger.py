@@ -185,6 +185,7 @@ def _attach_grid_features(
     feature_columns: List[str],
     prefix: str,
     temporal_strategy: str,
+    is_placeholder: bool = False,
 ) -> pd.DataFrame:
     rows = []
     for _, observation in observations.iterrows():
@@ -195,7 +196,10 @@ def _attach_grid_features(
         for feature in feature_columns:
             row[feature] = pd.NA if nearest is None else nearest.get(feature, pd.NA)
         distance_column = f"{prefix}_match_distance_km"
-        row[distance_column] = pd.NA if nearest is None else nearest["match_distance_km"]
+        if is_placeholder:
+            row[distance_column] = float("nan")
+        else:
+            row[distance_column] = pd.NA if nearest is None else nearest["match_distance_km"]
         rows.append(row)
     return pd.DataFrame(rows)
 
@@ -220,12 +224,100 @@ def integrate_datasets(
     satellite_grid, satellite_source = load_satellite_grid(stations, merged["timestamp"])
     era5_grid, era5_source = load_era5_grid(stations, merged["timestamp"])
 
+    is_satellite_placeholder = "placeholder" in satellite_source
+    is_era5_placeholder = "placeholder" in era5_source
+    num_rows = len(merged)
+
+    # Log structured warnings
+    warnings_generated = []
+    if is_satellite_placeholder and is_era5_placeholder:
+        warn_msg = (
+            "Missing data sources: Satellite and ERA5. "
+            "Placeholder data was generated because the physical grid files "
+            "(satellite_predictors.csv/satellite_features.csv and era5_meteorology.csv/era5_features.csv) "
+            "were not found in processed_data/. "
+            f"Created {num_rows} placeholder rows for Satellite features and {num_rows} placeholder rows for ERA5 features."
+        )
+        logger.warning(warn_msg)
+        warnings_generated.append(warn_msg)
+    elif is_satellite_placeholder:
+        warn_msg = (
+            "Missing data source: Satellite. "
+            "Placeholder data was generated because the physical grid files "
+            "(satellite_predictors.csv/satellite_features.csv) were not found in processed_data/. "
+            f"Created {num_rows} placeholder rows for Satellite features."
+        )
+        logger.warning(warn_msg)
+        warnings_generated.append(warn_msg)
+    elif is_era5_placeholder:
+        warn_msg = (
+            "Missing data source: ERA5. "
+            "Placeholder data was generated because the physical grid files "
+            "(era5_meteorology.csv/era5_features.csv) were not found in processed_data/. "
+            f"Created {num_rows} placeholder rows for ERA5 features."
+        )
+        logger.warning(warn_msg)
+        warnings_generated.append(warn_msg)
+
+    # Collect diagnostics metrics and generate report
+    missing_sources = []
+    if is_satellite_placeholder:
+        missing_sources.append("Satellite")
+    if is_era5_placeholder:
+        missing_sources.append("ERA5")
+
+    satellite_placeholders_created = num_rows if is_satellite_placeholder else 0
+    era5_placeholders_created = num_rows if is_era5_placeholder else 0
+    total_placeholders_created = satellite_placeholders_created + era5_placeholders_created
+
+    placeholder_cols = []
+    if is_satellite_placeholder:
+        placeholder_cols.extend(SATELLITE_FEATURES)
+    if is_era5_placeholder:
+        placeholder_cols.extend(METEOROLOGY_FEATURES)
+
+    satellite_success_matches = 0 if is_satellite_placeholder else num_rows
+    era5_success_matches = 0 if is_era5_placeholder else num_rows
+    satellite_placeholder_matches = num_rows if is_satellite_placeholder else 0
+    era5_placeholder_matches = num_rows if is_era5_placeholder else 0
+
+    report_path = config.BASE_DIR.parent / "placeholder_diagnostics_report.md"
+    report_content = f"""# Placeholder Diagnostics Report
+
+## Missing Data Sources Detected
+{chr(10).join(f"* {src}" for src in missing_sources) if missing_sources else "* None"}
+
+## Summary of Placeholder Rows Created
+* **Satellite Placeholder Rows:** {satellite_placeholders_created}
+* **ERA5 Placeholder Rows:** {era5_placeholders_created}
+* **Total Placeholder Rows:** {total_placeholders_created}
+
+## Placeholder Columns Populated
+{chr(10).join(f"* {col}" for col in placeholder_cols) if placeholder_cols else "* None"}
+
+## Spatial Match Statistics
+* **Successful Spatial Matches (Satellite):** {satellite_success_matches}
+* **Successful Spatial Matches (ERA5):** {era5_success_matches}
+* **Placeholder Matches (Satellite):** {satellite_placeholder_matches}
+* **Placeholder Matches (ERA5):** {era5_placeholder_matches}
+
+## Warnings Generated During Execution
+{chr(10).join(f"* {w}" for w in warnings_generated) if warnings_generated else "* None"}
+"""
+    try:
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        logger.info(f"Generated placeholder diagnostics report at {report_path}")
+    except OSError as e:
+        logger.error(f"Failed to write placeholder diagnostics report: {e}")
+
     merged = _attach_grid_features(
         merged,
         satellite_grid,
         SATELLITE_FEATURES,
         "satellite",
         temporal_strategy,
+        is_placeholder=is_satellite_placeholder,
     )
     merged = _attach_grid_features(
         merged,
@@ -233,6 +325,7 @@ def integrate_datasets(
         METEOROLOGY_FEATURES,
         "era5",
         temporal_strategy,
+        is_placeholder=is_era5_placeholder,
     )
     features = build_features(merged)
     features = apply_missing_strategy(features, missing_strategy, ALL_FEATURES)
