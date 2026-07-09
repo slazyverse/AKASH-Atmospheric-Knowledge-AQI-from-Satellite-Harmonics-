@@ -1,18 +1,28 @@
+"""
+Cross-Validation Module.
+
+Refactored to integrate with FeatureGroupManager, FeatureValidator,
+and the shared preprocessing pipeline to prevent data leakage.
+"""
+
 import logging
 import json
 from pathlib import Path
-from typing import Any, Dict, Union
+from typing import Any, Dict, List, Tuple, Union
 
 import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
 from sklearn.model_selection import KFold, cross_validate
+from sklearn.pipeline import Pipeline
 
-try:
-    from data_collection_pipeline import config
-except ImportError:
-    config = None
+from data_collection_pipeline.feature_engineering import (
+    FeatureGroupManager,
+    FeatureValidator,
+    preprocess_target,
+    build_preprocessing_pipeline
+)
 
 logger = logging.getLogger(__name__)
 
@@ -28,30 +38,47 @@ def load_training_dataset(file_path: Union[str, Path]) -> pd.DataFrame:
     return df
 
 
-def prepare_features(df: pd.DataFrame, target_column: str) -> pd.DataFrame:
-    """Prepares numerical features."""
-    logger.info(f"Preparing features (excluding target '{target_column}')")
-    numeric_df = df.select_dtypes(include=["number"]).copy()
-    if target_column in numeric_df.columns:
-        numeric_df = numeric_df.drop(columns=[target_column])
-    numeric_df = numeric_df.fillna(numeric_df.mean(numeric_only=True)).fillna(0.0)
-    logger.info(f"Prepared features shape: {numeric_df.shape}")
-    return numeric_df
+def prepare_features(df: pd.DataFrame, target_column: str) -> Tuple[pd.DataFrame, List[str]]:
+    """
+    Selects expected predictor columns using FeatureGroupManager.
+    
+    Args:
+        df: Input DataFrame.
+        target_column: Target column to drop.
+        
+    Returns:
+        Tuple of:
+          - DataFrame of raw features
+          - list of feature names
+    """
+    logger.info(f"Preparing features (excluding target '{target_column}') using FeatureGroupManager...")
+    
+    feature_groups = ["satellite", "meteorology", "geography", "temporal"]
+    feature_cols = []
+    
+    for grp in feature_groups:
+        feature_cols.extend(FeatureGroupManager.get_features_in_group(grp))
+        
+    actual_features = [col for col in feature_cols if col in df.columns]
+    
+    if not actual_features:
+        raise ValueError("No schema-registered features found in the input DataFrame.")
+        
+    return df[actual_features].copy(), actual_features
 
 
-def prepare_target(df: pd.DataFrame, target_column: str) -> pd.Series:
-    """Prepares the target variable."""
-    logger.info(f"Preparing target '{target_column}'")
-    if target_column not in df.columns:
-        raise ValueError(f"Target column '{target_column}' not found in dataset.")
-    y = df[target_column].copy()
-    y = y.fillna(y.mean()).fillna(0.0)
-    logger.info(f"Prepared target shape: {y.shape}")
-    return y
-
-
-def perform_cross_validation(X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
-    """Performs cross-validation on the specified models."""
+def perform_cross_validation(X: pd.DataFrame, y: pd.Series, feature_cols: List[str]) -> pd.DataFrame:
+    """
+    Performs cross-validation wrapping preprocessor and models in Pipelines to prevent data leakage.
+    
+    Args:
+        X: Input features DataFrame.
+        y: Target series.
+        feature_cols: List of features to process.
+        
+    Returns:
+        pd.DataFrame containing detailed fold metrics.
+    """
     logger.info("Performing cross-validation for multiple models.")
     
     n_samples = len(X)
@@ -70,15 +97,29 @@ def perform_cross_validation(X: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
     logger.info(f"Using {n_splits}-fold cross-validation.")
     cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
     
+    prep_pipeline = build_preprocessing_pipeline(feature_cols)
+    preprocessor = prep_pipeline.named_steps["preprocessor"]
+    
     models = {
-        "Linear Regression": LinearRegression(),
-        "Random Forest Regressor": RandomForestRegressor(random_state=42),
-        "Extra Trees Regressor": ExtraTreesRegressor(random_state=42),
-        "Gradient Boosting Regressor": GradientBoostingRegressor(random_state=42)
+        "Linear Regression": Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", LinearRegression())
+        ]),
+        "Random Forest Regressor": Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", RandomForestRegressor(random_state=42))
+        ]),
+        "Extra Trees Regressor": Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", ExtraTreesRegressor(random_state=42))
+        ]),
+        "Gradient Boosting Regressor": Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", GradientBoostingRegressor(random_state=42))
+        ])
     }
     
     metrics = ['neg_root_mean_squared_error', 'neg_mean_absolute_error', 'r2']
-    
     all_results = []
     
     for name, model in models.items():
@@ -121,62 +162,51 @@ def summarize_cross_validation(results_df: pd.DataFrame) -> Dict[str, Any]:
     
     for model_name in results_df['Model'].unique():
         model_df = results_df[results_df['Model'] == model_name]
-        
-        # Replace inf with nan for aggregation purposes so they don't corrupt means
         safe_df = model_df.replace([np.inf, -np.inf], np.nan)
         
         summary[model_name] = {
-            "RMSE_mean": float(safe_df['RMSE'].mean()),
-            "RMSE_std": float(safe_df['RMSE'].std() if len(safe_df) > 1 else 0.0),
-            "MAE_mean": float(safe_df['MAE'].mean()),
-            "MAE_std": float(safe_df['MAE'].std() if len(safe_df) > 1 else 0.0),
-            "R2_mean": float(safe_df['R2'].mean()),
-            "R2_std": float(safe_df['R2'].std() if len(safe_df) > 1 else 0.0)
+            "RMSE_mean": float(safe_df['RMSE'].mean()) if not safe_df['RMSE'].isna().all() else None,
+            "RMSE_std": float(safe_df['RMSE'].std() if len(safe_df) > 1 else 0.0) if not safe_df['RMSE'].isna().all() else 0.0,
+            "MAE_mean": float(safe_df['MAE'].mean()) if not safe_df['MAE'].isna().all() else None,
+            "MAE_std": float(safe_df['MAE'].std() if len(safe_df) > 1 else 0.0) if not safe_df['MAE'].isna().all() else 0.0,
+            "R2_mean": float(safe_df['R2'].mean()) if not safe_df['R2'].isna().all() else None,
+            "R2_std": float(safe_df['R2'].std() if len(safe_df) > 1 else 0.0) if not safe_df['R2'].isna().all() else 0.0
         }
-    
-    # Handle NaN values to make sure it's serializable
-    for model, metrics in summary.items():
-        for k, v in metrics.items():
-            if np.isnan(v):
-                summary[model][k] = None
-
-    logger.info("Summary computation completed.")
+        
     return summary
 
 
-def generate_cross_validation_report(results_df: pd.DataFrame, summary: Dict[str, Any], output_dir: Union[str, Path]) -> None:
+def generate_cross_validation_report(
+    results_df: pd.DataFrame, 
+    summary: Dict[str, Any], 
+    output_dir: Union[str, Path]
+) -> None:
     """Generates cross validation outputs: CSV, JSON, and Markdown."""
     logger.info(f"Generating cross-validation reports in {output_dir}")
     out_path = Path(output_dir)
     out_path.mkdir(parents=True, exist_ok=True)
     
-    # 1. cross_validation_results.csv
     csv_path = out_path / "cross_validation_results.csv"
     results_df.to_csv(csv_path, index=False)
     
-    # 2. cross_validation_summary.json
     json_path = out_path / "cross_validation_summary.json"
     with open(json_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=4)
         
-    # 3. cross_validation_report.md
     md_path = out_path / "cross_validation_report.md"
     with open(md_path, "w", encoding="utf-8") as f:
         f.write("# Team RAPTORS - Cross-Validation Report\n\n")
-        f.write("## Overview\n")
-        f.write("This report summarizes the performance of models evaluated using cross-validation on the training dataset.\n\n")
-        
         f.write("## Performance Summary (Mean ± Std)\n")
         f.write("| Model | RMSE | MAE | R2 |\n")
         f.write("| :--- | :---: | :---: | :---: |\n")
         
         for model_name, metrics in summary.items():
             rmse_m = metrics.get('RMSE_mean')
-            rmse_s = metrics.get('RMSE_std')
+            rmse_s = metrics.get('RMSE_std', 0.0)
             mae_m = metrics.get('MAE_mean')
-            mae_s = metrics.get('MAE_std')
+            mae_s = metrics.get('MAE_std', 0.0)
             r2_m = metrics.get('R2_mean')
-            r2_s = metrics.get('R2_std')
+            r2_s = metrics.get('R2_std', 0.0)
             
             rmse_str = f"{rmse_m:.4f} ± {rmse_s:.4f}" if rmse_m is not None else "N/A"
             mae_str = f"{mae_m:.4f} ± {mae_s:.4f}" if mae_m is not None else "N/A"
@@ -184,45 +214,32 @@ def generate_cross_validation_report(results_df: pd.DataFrame, summary: Dict[str
             
             f.write(f"| **{model_name}** | {rmse_str} | {mae_str} | {r2_str} |\n")
         f.write("\n")
-        
-        f.write("## Detailed Fold Results\n")
-        f.write("| Model | Fold | RMSE | MAE | R2 |\n")
-        f.write("| :--- | :---: | :---: | :---: | :---: |\n")
-        
-        for _, row in results_df.iterrows():
-            rmse = f"{row['RMSE']:.4f}" if not np.isinf(row['RMSE']) else "inf"
-            mae = f"{row['MAE']:.4f}" if not np.isinf(row['MAE']) else "inf"
-            r2 = f"{row['R2']:.4f}" if not np.isinf(row['R2']) else "-inf"
-            f.write(f"| **{row['Model']}** | {row['Fold']} | {rmse} | {mae} | {r2} |\n")
-        f.write("\n")
-        
-    logger.info("All reports generated successfully.")
 
 
 def run_cross_validation(train_path: Union[str, Path], output_dir: Union[str, Path]) -> None:
-    """Executes the complete cross-validation pipeline."""
-    target_col = "PM2.5"
-    if config and hasattr(config, "REQUIRED_TARGET_COLUMN"):
-        target_col = getattr(config, "REQUIRED_TARGET_COLUMN")
-        
+    """Executes the complete cross-validation pipeline with schema validations."""
     df_train = load_training_dataset(train_path)
     
-    if target_col not in df_train.columns:
-        if "PM2.5" in df_train.columns:
-            target_col = "PM2.5"
-            
-    X = prepare_features(df_train, target_col)
-    y = prepare_target(df_train, target_col)
+    # 1. Validate DataFrame structure and ranges
+    validator = FeatureValidator()
+    report = validator.validate_dataframe(df_train)
     
-    results_df = perform_cross_validation(X, y)
+    if report["status"] == "FAILED":
+        msg = f"Critical validation failures in cross-validation dataset: {report['type_mismatches']}"
+        logger.error(msg)
+        raise ValueError(msg)
+        
+    # 2. Preprocess target variable
+    y, target_col = preprocess_target(df_train)
+    # Align rows with non-missing targets
+    df_train[target_col] = y
+    df_clean = df_train.dropna(subset=[target_col]).copy()
+    y_clean = df_clean[target_col]
+    
+    # 3. Prepare features
+    X, feature_cols = prepare_features(df_clean, target_col)
+    
+    # 4. Run
+    results_df = perform_cross_validation(X, y_clean, feature_cols)
     summary = summarize_cross_validation(results_df)
     generate_cross_validation_report(results_df, summary, output_dir)
-
-
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s [%(name)s] - %(message)s")
-    workspace_root = Path(__file__).resolve().parent.parent.parent
-    run_cross_validation(
-        train_path=workspace_root / "train_dataset.csv",
-        output_dir=workspace_root
-    )

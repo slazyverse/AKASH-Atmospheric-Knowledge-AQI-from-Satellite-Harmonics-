@@ -7,6 +7,10 @@ from data_collection_pipeline.feature_engineering.schema import FeatureMetadata,
 from data_collection_pipeline.feature_engineering.groups import FeatureGroupManager
 from data_collection_pipeline.feature_engineering.validation import FeatureValidator
 from data_collection_pipeline.feature_engineering.selection import FeatureSelector
+from data_collection_pipeline.feature_engineering.preprocessing import (
+    preprocess_target,
+    build_preprocessing_pipeline
+)
 
 __all__ = [
     "run_integration_pipeline",
@@ -15,4 +19,6 @@ __all__ = [
     "FeatureGroupManager",
     "FeatureValidator",
     "FeatureSelector",
+    "preprocess_target",
+    "build_preprocessing_pipeline",
 ]
