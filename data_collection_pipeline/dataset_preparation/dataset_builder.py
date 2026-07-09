@@ -52,7 +52,79 @@ def build_analysis_dataset(
     if not is_valid:
         logger.warning("Dataset schema validation failed.")
     
-    X = prepare_feature_matrix(collocated_df)
-    y = prepare_target_vector(collocated_df)
+    # Retrieve configured target column dynamically
+    from data_collection_pipeline import config
+    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+    
+    # Verify the target column exists
+    target_found = "Yes" if target_col in collocated_df.columns else "No"
+    if target_col not in collocated_df.columns:
+        # Generate failure report first
+        report_path = config.BASE_DIR.parent / "target_column_validation_report.md"
+        report_content = f"""# Target Column Validation Report
+
+## Configuration
+* **Configured Target Column:** `{target_col}`
+* **Source Dataset:** `analysis_ready_dataset.csv`
+
+## Validation Metrics
+* **Target Column Found:** No
+* **Null Count:** 0
+* **Total Records:** {len(collocated_df)}
+* **Validation Result:** FAIL
+
+## Warnings Encountered
+* Target column '{target_col}' was missing from the dataset.
+"""
+        try:
+            with open(report_path, "w", encoding="utf-8") as f:
+                f.write(report_content)
+        except OSError as e:
+            logger.error(f"Failed to write target column validation report: {e}")
+            
+        raise ValueError(
+            f"Configured target column '{target_col}' is missing from the collocated dataset. "
+            "Verify that it is carried forward from the raw observations through the merge stage."
+        )
+        
+    # Verify target column contains non-null values
+    null_count = collocated_df[target_col].isna().sum()
+    total_records = len(collocated_df)
+    non_null_count = total_records - null_count
+    
+    warnings_list = []
+    if non_null_count == 0:
+        warn_msg = f"Target column '{target_col}' is present but contains only null values (100% missing)."
+        logger.warning(warn_msg)
+        warnings_list.append(warn_msg)
+        
+    validation_status = "PASS" if non_null_count > 0 else "FAIL"
+    
+    # Generate validation report
+    report_path = config.BASE_DIR.parent / "target_column_validation_report.md"
+    report_content = f"""# Target Column Validation Report
+
+## Configuration
+* **Configured Target Column:** `{target_col}`
+* **Source Dataset:** `analysis_ready_dataset.csv`
+
+## Validation Metrics
+* **Target Column Found:** Yes
+* **Null Count:** {null_count}
+* **Total Records:** {total_records}
+* **Validation Result:** {validation_status}
+
+## Warnings Encountered
+{chr(10).join(f"* {w}" for w in warnings_list) if warnings_list else "* None"}
+"""
+    try:
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(report_content)
+        logger.info(f"Generated target column validation report at {report_path}")
+    except OSError as e:
+        logger.error(f"Failed to write target column validation report: {e}")
+        
+    X = prepare_feature_matrix(collocated_df, target_col=target_col)
+    y = prepare_target_vector(collocated_df, target_col=target_col)
         
     return collocated_df, X, y

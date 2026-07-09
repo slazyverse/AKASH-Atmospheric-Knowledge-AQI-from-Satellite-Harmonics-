@@ -371,6 +371,7 @@ def integrate_datasets(
     features = apply_missing_strategy(features, missing_strategy, ALL_FEATURES)
     features["placeholder_used"] = placeholder_used
 
+    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
     output_columns = [
         "Station ID",
         "Station Name",
@@ -384,6 +385,7 @@ def integrate_datasets(
         "satellite_match_distance_km",
         "era5_match_distance_km",
         "placeholder_used",
+        target_col,
     ]
     for column in output_columns:
         if column not in features.columns:
