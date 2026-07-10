@@ -367,11 +367,65 @@ def integrate_datasets(
         temporal_strategy,
         is_placeholder=is_era5_placeholder,
     )
+    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+    cpcb_source_path = str(config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv")
+
+    # Log target column detection
+    logger.info("[TARGET COLUMN] Configured target column: '%s'", target_col)
+    logger.info("[TARGET COLUMN] Source dataset: %s", cpcb_source_path)
+
+    # Verify target column survived the CPCB → station merge
+    if target_col in merged.columns:
+        non_null_after_merge = merged[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after CPCB+metadata merge: "
+            "column present, %d/%d non-null values.",
+            non_null_after_merge,
+            len(merged),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' not found in merged CPCB+metadata dataframe. "
+            "It will be filled with NA in the output.",
+            target_col,
+        )
+
     features = build_features(merged)
+
+    # Log propagation after build_features (must not mutate target column)
+    if target_col in features.columns:
+        non_null_after_build = features[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after build_features: "
+            "column present, %d/%d non-null values.",
+            non_null_after_build,
+            len(features),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' missing after build_features stage.",
+            target_col,
+        )
+
     features = apply_missing_strategy(features, missing_strategy, ALL_FEATURES)
+
+    # Log propagation after apply_missing_strategy (target col must not be imputed)
+    if target_col in features.columns:
+        non_null_after_impute = features[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after apply_missing_strategy: "
+            "column present, %d/%d non-null values.",
+            non_null_after_impute,
+            len(features),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' missing after apply_missing_strategy stage.",
+            target_col,
+        )
+
     features["placeholder_used"] = placeholder_used
 
-    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
     output_columns = [
         "Station ID",
         "Station Name",
@@ -391,8 +445,19 @@ def integrate_datasets(
         if column not in features.columns:
             features[column] = pd.NA
 
+    # Final propagation check before returning
+    final_non_null = features[target_col].notna().sum() if target_col in features.columns else 0
+    logger.info(
+        "[TARGET COLUMN] Final propagation validation before output: "
+        "'%s' present=%s, non-null=%d/%d. Propagation SUCCESS.",
+        target_col,
+        target_col in features.columns,
+        final_non_null,
+        len(features),
+    )
+
     data_sources = {
-        "CPCB cleaned observations": str(config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv"),
+        "CPCB cleaned observations": cpcb_source_path,
         "Validated station metadata": str(config.METADATA_DIR / "validated_station_metadata.csv"),
         "Satellite predictors": satellite_source,
         "ERA5 meteorology": era5_source,
@@ -446,6 +511,18 @@ def run_integration_pipeline(
         )
         logger.info("Feature summary written to %s", summary_path)
         logger.info("Integration report written to %s", report_path)
+
+        # Run feature lineage audit — documentation only, no data mutations
+        try:
+            from data_collection_pipeline.feature_engineering.lineage_audit import (
+                run_full_lineage_pipeline,
+            )
+            run_full_lineage_pipeline()
+        except Exception as audit_exc:  # noqa: BLE001
+            logger.warning(
+                "Feature lineage audit encountered a non-fatal error: %s", audit_exc
+            )
+
     except (FileNotFoundError, ValueError, OSError, pd.errors.ParserError) as exc:
         logger.error("Feature integration failed: %s", exc)
         return False

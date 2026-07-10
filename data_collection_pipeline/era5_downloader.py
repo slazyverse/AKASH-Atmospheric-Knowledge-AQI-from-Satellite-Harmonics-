@@ -75,12 +75,95 @@ def _resolve_dry_run_default() -> bool:
             "(dry_run=False).  Pass dry_run=True to override."
         )
         return False
-    logger.info(
-        "No CDS API credentials found — defaulting to dry-run mode "
-        "(dry_run=True).  Configure ~/.cdsapirc or CDSAPI_KEY to enable "
-        "live downloads."
+    logger.warning(
+        "[ERA5 CREDENTIALS] No CDS API credentials found. "
+        "Checked: ~/.cdsapirc (%s) — NOT FOUND; "
+        "CDSAPI_KEY environment variable — NOT SET. "
+        "Defaulting to dry-run mode (no CDS API call). "
+        "ERA5 download is SKIPPED. "
+        "Configure ~/.cdsapirc or set CDSAPI_KEY to enable live downloads.",
+        _CDSAPI_RC_PATH,
     )
     return True
+
+
+def diagnose_credentials() -> dict:
+    """Detect CDS API credentials and return a structured status dictionary.
+
+    Checks both ``~/.cdsapirc`` and the ``CDSAPI_KEY`` environment variable.
+    Provides actionable remediation steps when credentials are absent.
+
+    Returns
+    -------
+    dict
+        Keys: ``has_cdsapirc``, ``has_env_key``, ``overall``, ``source``,
+        ``cdsapirc_path``, ``missing_reason``, ``remediation``.
+    """
+    has_cdsapirc = _CDSAPI_RC_PATH.exists()
+    env_key = os.environ.get("CDSAPI_KEY", "")
+    has_env_key = bool(env_key)
+    overall = has_cdsapirc or has_env_key
+
+    if has_cdsapirc and has_env_key:
+        source = f"~/.cdsapirc (primary) + CDSAPI_KEY env var (also set)"
+        missing_reason = ""
+        remediation = ""
+    elif has_cdsapirc:
+        source = f"~/.cdsapirc file at {_CDSAPI_RC_PATH}"
+        missing_reason = ""
+        remediation = ""
+    elif has_env_key:
+        source = "CDSAPI_KEY environment variable"
+        missing_reason = ""
+        remediation = ""
+    else:
+        source = "None detected"
+        missing_reason = (
+            f"Neither ~/.cdsapirc (checked: {_CDSAPI_RC_PATH}) "
+            "nor the CDSAPI_KEY environment variable is configured."
+        )
+        remediation = (
+            "To enable live ERA5 downloads, do one of the following:\n"
+            "\n"
+            "Option A — Create ~/.cdsapirc:\n"
+            "  1. Register at https://cds.climate.copernicus.eu/\n"
+            "  2. Go to your profile page and copy your API key.\n"
+            "  3. Create the file ~/.cdsapirc with contents:\n"
+            "       url: https://cds.climate.copernicus.eu/api\n"
+            "       key: <your-uid>:<your-api-key>\n"
+            "\n"
+            "Option B — Set environment variable:\n"
+            "  set CDSAPI_KEY=<your-uid>:<your-api-key>   # Windows\n"
+            "  export CDSAPI_KEY=<your-uid>:<your-api-key> # Linux/macOS\n"
+            "\n"
+            "After configuring credentials, re-run:\n"
+            "  python data_collection_pipeline/scripts/run_pipeline.py "
+            "--era5-only --no-dry-run"
+        )
+
+    if overall:
+        logger.info(
+            "[ERA5 CREDENTIALS] Credentials detected via: %s", source
+        )
+    else:
+        logger.warning(
+            "[ERA5 CREDENTIALS] No CDS API credentials found. "
+            "Checked ~/.cdsapirc (%s): NOT FOUND. "
+            "Checked CDSAPI_KEY env var: NOT SET. "
+            "ERA5 download will be skipped. "
+            "The pipeline will continue with placeholder meteorological data.",
+            _CDSAPI_RC_PATH,
+        )
+
+    return {
+        "has_cdsapirc": has_cdsapirc,
+        "has_env_key": has_env_key,
+        "overall": overall,
+        "source": source,
+        "cdsapirc_path": str(_CDSAPI_RC_PATH),
+        "missing_reason": missing_reason,
+        "remediation": remediation,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -117,7 +200,13 @@ def get_era5_request_dict(
         CDS API request payload.
     """
     if variables is None:
-        variables = config.ERA5_DEFAULT_VARIABLES
+        variables = config.ERA5_DEFAULT_VARIABLES.copy()
+        
+    # Ensure variables required by the ML pipeline/validator are downloaded
+    if "surface_pressure" not in variables:
+        variables.append("surface_pressure")
+    if "2m_dewpoint_temperature" not in variables:
+        variables.append("2m_dewpoint_temperature")
 
     return {
         "product_type": "reanalysis",
@@ -243,6 +332,54 @@ def _execute_cds_download(request_dict: Dict, target_path: Path) -> bool:
             request_dict.get("day"),
         )
         client.retrieve(_CDS_DATASET, request_dict, str(target_path))
+        logger.info("[ERA5 DOWNLOAD] Downloaded archive:\n%s", target_path.name)
+        
+        import zipfile
+        import shutil
+        
+        if zipfile.is_zipfile(target_path):
+            logger.info("[ERA5 ZIP] ZIP archive detected.")
+            extract_dir = target_path.parent / "era5_extract"
+            extract_dir.mkdir(parents=True, exist_ok=True)
+            
+            with zipfile.ZipFile(target_path, 'r') as zf:
+                zf.extractall(extract_dir)
+                extracted_files = zf.namelist()
+                logger.info("[ERA5 ZIP] Extracted %d NetCDF files.", len(extracted_files))
+                for f in extracted_files:
+                    logger.info("[ERA5 ZIP] Extracted:\n%s", f)
+                    
+            nc_files = list(extract_dir.glob("*.nc"))
+            if nc_files:
+                selected_nc = next((nc for nc in nc_files if "instant" in nc.name), nc_files[0])
+                logger.info("[ERA5 ZIP] Selected:\n%s", selected_nc.name)
+                
+                logger.info("[ERA5] Injecting derived variables (Relative Humidity) into NetCDF...")
+                try:
+                    import xarray as xr
+                    import numpy as np
+                    
+                    with xr.open_dataset(selected_nc) as ds:
+                        ds_mod = ds.copy(deep=True)
+                        
+                        if "d2m" in ds_mod and "t2m" in ds_mod:
+                            t_c = ds_mod["t2m"] - 273.15
+                            d_c = ds_mod["d2m"] - 273.15
+                            # August-Roche-Magnus approximation
+                            rh = 100.0 * np.exp((17.625 * d_c) / (243.04 + d_c)) / np.exp((17.625 * t_c) / (243.04 + t_c))
+                            ds_mod["r"] = rh
+                            logger.info("[ERA5 ZIP] Calculated Relative Humidity (r) from t2m and d2m.")
+                            
+                        target_path.unlink(missing_ok=True)
+                        ds_mod.to_netcdf(target_path)
+                except Exception as e:
+                    logger.error("[ERA5 ZIP] Failed to process NetCDF via xarray: %s", e)
+                    target_path.unlink(missing_ok=True)
+                    shutil.move(str(selected_nc), str(target_path))
+            else:
+                logger.error("[ERA5 ZIP] No NetCDF files found in the extracted archive.")
+                return False
+                
         logger.info(
             "ERA5 NetCDF downloaded successfully: %s (%.1f MB)",
             target_path,

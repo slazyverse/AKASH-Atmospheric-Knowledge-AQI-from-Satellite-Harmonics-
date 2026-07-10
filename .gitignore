@@ -78,3 +78,14 @@ placeholder_merge_validation_report.md
 
 # Target validation outputs
 target_column_validation_report.md
+
+# Feature lineage reports
+feature_lineage_report.md
+feature_availability_manifest.csv
+
+# ERA5 validation outputs
+era5_pipeline_validation_report.md
+
+# Upstream validation outputs
+upstream_data_generation_report.md
+upstream_operational_validation_report.md

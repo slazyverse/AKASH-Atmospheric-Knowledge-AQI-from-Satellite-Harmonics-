@@ -87,7 +87,7 @@ logger = logging.getLogger("data_collection_pipeline.sentinel5p")
 # ---------------------------------------------------------------------------
 
 #: India bounding box [West, South, East, North]
-INDIA_BBOX: Tuple[float, float, float, float] = (68.0, 6.0, 98.0, 38.0)
+INDIA_BBOX: Tuple[float, float, float, float] = (76.0, 28.0, 78.0, 29.0)
 
 #: Output grid resolution in degrees
 GRID_RESOLUTION_DEG: float = 0.1
@@ -114,8 +114,8 @@ S5P_BAND_MAP: Dict[str, str] = {
 }
 
 #: MODIS AOD collection and band
-AOD_COLLECTION: str = "MODIS/061/MOD04_3K"
-AOD_BAND: str = "Optical_Depth_Land_And_Ocean"
+AOD_COLLECTION: str = "MODIS/061/MCD19A2_GRANULES"
+AOD_BAND: str = "Optical_Depth_055"
 
 #: Canonical output column order (matches merger.SATELLITE_RENAME_MAP keys)
 OUTPUT_COLUMNS: List[str] = [
@@ -179,6 +179,71 @@ def _gee_credentials_available() -> bool:
     return False
 
 
+def diagnose_credentials() -> Dict:
+    """Detect GEE dependencies and credentials, returning a structured status dictionary.
+
+    Returns
+    -------
+    dict
+        Keys: ``has_api``, ``has_oauth``, ``has_sa``, ``overall``, ``missing_reason``, ``remediation``.
+    """
+    has_api = False
+    try:
+        import ee  # noqa: PLC0415
+        has_api = True
+    except ImportError:
+        pass
+
+    gee_cred_path = Path.home() / ".config" / "earthengine" / "credentials"
+    has_oauth = gee_cred_path.exists()
+
+    sa = os.environ.get("GEE_SERVICE_ACCOUNT")
+    key_file = os.environ.get("GEE_SERVICE_ACCOUNT_KEY_FILE")
+    key_json = os.environ.get("GEE_SERVICE_ACCOUNT_KEY_JSON")
+    has_sa = bool(sa and (key_file or key_json))
+
+    overall = has_api and (has_oauth or has_sa)
+
+    if overall:
+        source = "Service Account" if has_sa else f"OAuth ({gee_cred_path})"
+        missing_reason = ""
+        remediation = ""
+    elif not has_api:
+        source = "None"
+        missing_reason = "The 'earthengine-api' package is not installed."
+        remediation = (
+            "To enable live Satellite downloads:\n"
+            "  1. Run: pip install earthengine-api\n"
+            "  2. Run: earthengine authenticate\n"
+        )
+    else:
+        source = "None"
+        missing_reason = "GEE credentials not found (no OAuth token, no service account vars)."
+        remediation = (
+            "To enable live Satellite downloads:\n"
+            "  Run: earthengine authenticate\n"
+            "  OR set GEE_SERVICE_ACCOUNT and GEE_SERVICE_ACCOUNT_KEY_FILE env variables."
+        )
+
+    if overall:
+        logger.info("[GEE CREDENTIALS] Credentials detected via: %s", source)
+    else:
+        logger.warning(
+            "[GEE CREDENTIALS] GEE Satellite collection will be skipped. %s",
+            missing_reason,
+        )
+
+    return {
+        "has_api": has_api,
+        "has_oauth": has_oauth,
+        "has_sa": has_sa,
+        "overall": overall,
+        "source": source,
+        "missing_reason": missing_reason,
+        "remediation": remediation,
+    }
+
+
 def _authenticate_gee(ee: object) -> None:
     """Authenticate to Google Earth Engine.
 
@@ -204,10 +269,17 @@ def _authenticate_gee(ee: object) -> None:
     key_json_str = os.environ.get("GEE_SERVICE_ACCOUNT_KEY_JSON")
 
     try:
+        project = (
+            os.getenv("GEE_PROJECT")
+            or os.getenv("GOOGLE_CLOUD_PROJECT")
+            or "aqi-satellite"
+        )
+
         if sa and key_file and Path(key_file).exists():
             logger.info("Authenticating GEE via service-account key file: %s", key_file)
             credentials = ee.ServiceAccountCredentials(sa, key_file)  # type: ignore[attr-defined]
-            ee.Initialize(credentials)  # type: ignore[attr-defined]
+            logger.info("Initializing Google Earth Engine with project: %s", project)
+            ee.Initialize(credentials=credentials, project=project)  # type: ignore[attr-defined]
             logger.info("GEE authenticated via service-account key file.")
             return
 
@@ -221,7 +293,8 @@ def _authenticate_gee(ee: object) -> None:
                 tmp_path = tmp.name
             try:
                 credentials = ee.ServiceAccountCredentials(sa, tmp_path)  # type: ignore[attr-defined]
-                ee.Initialize(credentials)  # type: ignore[attr-defined]
+                logger.info("Initializing Google Earth Engine with project: %s", project)
+                ee.Initialize(credentials=credentials, project=project)  # type: ignore[attr-defined]
             finally:
                 Path(tmp_path).unlink(missing_ok=True)
             logger.info("GEE authenticated via inline service-account JSON.")
@@ -231,7 +304,8 @@ def _authenticate_gee(ee: object) -> None:
         gee_cred_path = Path.home() / ".config" / "earthengine" / "credentials"
         if gee_cred_path.exists():
             logger.info("Authenticating GEE via OAuth credentials at %s.", gee_cred_path)
-            ee.Initialize()  # type: ignore[attr-defined]
+            logger.info("Initializing Google Earth Engine with project: %s", project)
+            ee.Initialize(project=project)  # type: ignore[attr-defined]
             logger.info("GEE authenticated via OAuth credentials.")
             return
 
@@ -384,7 +458,7 @@ def collect_satellite_data(
     feature-engineering run will automatically consume this file instead of
     the placeholder grid.
     """
-    date_str = date_str or datetime.date.today().strftime("%Y-%m-%d")
+    date_str = date_str or "2026-06-30"
     output_path = output_path or (config.PROCESSED_DATA_DIR / _DEFAULT_OUTPUT_FILENAME)
 
     logger.info(
