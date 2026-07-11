@@ -77,3 +77,23 @@ RANDOM_FOREST_PARAMS = {
     "n_jobs": -1
 }
 
+# LightGBM Hyperparameters
+LIGHTGBM_PARAMS = {
+    "n_estimators": int(os.getenv("LGBM_N_ESTIMATORS", "100")),
+    "max_depth": int(os.getenv("LGBM_MAX_DEPTH", "-1")),
+    "learning_rate": float(os.getenv("LGBM_LEARNING_RATE", "0.1")),
+    "num_leaves": int(os.getenv("LGBM_NUM_LEAVES", "31")),
+    "min_child_samples": int(os.getenv("LGBM_MIN_CHILD_SAMPLES", "20")),
+    "feature_fraction": float(os.getenv("LGBM_FEATURE_FRACTION", "1.0")),
+    "bagging_fraction": float(os.getenv("LGBM_BAGGING_FRACTION", "1.0")),
+    "bagging_freq": int(os.getenv("LGBM_BAGGING_FREQ", "0")),
+    "reg_alpha": float(os.getenv("LGBM_REG_ALPHA", "0.0")),
+    "reg_lambda": float(os.getenv("LGBM_REG_LAMBDA", "0.0")),
+    "objective": os.getenv("LGBM_OBJECTIVE", "regression"),
+    "metric": os.getenv("LGBM_METRIC", "rmse"),
+    "verbosity": int(os.getenv("LGBM_VERBOSITY", "-1")),
+    "random_state": RANDOM_STATE,
+    "n_jobs": -1
+}
+
+
