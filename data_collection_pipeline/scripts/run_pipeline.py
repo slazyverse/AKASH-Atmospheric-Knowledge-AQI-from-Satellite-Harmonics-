@@ -12,6 +12,8 @@ try:
         config,
         cpcb_collector,
         era5_downloader,
+        era5_processor,
+        sentinel5p_collector,
         main,
         openaq_collector,
         setup,
@@ -80,6 +82,30 @@ def main_cli():
         action="store_true",
         help="Execute the Day 4B ML pipeline (Preparation, Split, Training, Evaluation)."
     )
+    group.add_argument(
+        "--process-era5",
+        action="store_true",
+        help=(
+            "Convert a downloaded ERA5 NetCDF file "
+            "(raw_data/era5_meteorological_india.nc) to "
+            "processed_data/era5_meteorology.csv for feature engineering."
+        ),
+    )
+    group.add_argument(
+        "--collect-satellite",
+        action="store_true",
+        help=(
+            "Collect Sentinel-5P TROPOMI and MODIS AOD data via Google Earth Engine "
+            "and write processed_data/satellite_predictors.csv."
+        ),
+    )
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Target date for satellite collection (used with --collect-satellite).",
+    )
     
     args = parser.parse_args()
     
@@ -109,12 +135,45 @@ def main_cli():
         logger.info(f"OpenAQ execution complete. Output saved to {openaq_file}")
         
     elif args.era5_only:
-        logger.info("Running ERA5 preparation only...")
-        success = era5_downloader.prepare_era5_download(dry_run=dry_run)
-        if success:
-            logger.info("ERA5 preparation execution complete.")
+        import time
+        start_time = time.time()
+        logger.info("Running ERA5 preparation and ingestion pipeline...")
+        
+        # 1. Check credentials
+        from data_collection_pipeline.era5_downloader import diagnose_credentials
+        credential_info = diagnose_credentials()
+        
+        # Resolve dry_run: if credentials exist, automatically run live (dry_run=False)
+        resolved_dry_run = dry_run
+        if not args.no_dry_run and credential_info["overall"]:
+            resolved_dry_run = False
+            logger.info("CDS API credentials detected. Automatically resolving to live download/processing mode.")
+        
+        # 2. Download
+        download_success = era5_downloader.prepare_era5_download(dry_run=resolved_dry_run)
+        
+        # 3. Process CSV if downloaded
+        processing_success = False
+        if download_success and not resolved_dry_run and credential_info["overall"]:
+            logger.info("Download successful. Automatically initiating NetCDF → CSV processing...")
+            from data_collection_pipeline import era5_processor
+            processing_success = era5_processor.process_era5_netcdf()
+            
+        # 4. Validate and write report
+        from data_collection_pipeline.era5_validator import run_era5_pipeline_validation
+        runtime = time.time() - start_time
+        val_result = run_era5_pipeline_validation(
+            download_success=download_success,
+            processing_success=processing_success,
+            dry_run=resolved_dry_run,
+            credential_info=credential_info,
+            runtime_seconds=runtime,
+        )
+        
+        if val_result["passed"]:
+            logger.info("ERA5 pipeline execution completed successfully.")
         else:
-            logger.error("ERA5 preparation execution failed.")
+            logger.error("ERA5 pipeline execution failed or was skipped due to missing credentials.")
 
     elif args.clean_only:
         logger.info("Running Data Cleaning & Validation pipeline only...")
@@ -134,6 +193,50 @@ def main_cli():
         logger.error("Feature Engineering & Dataset Integration encountered errors.")
         sys.exit(1)
 
+    elif args.process_era5:
+        logger.info("Running ERA5 NetCDF → CSV processor ...")
+        success = era5_processor.process_era5_netcdf()
+        if success:
+            logger.info(
+                "ERA5 processing complete.  "
+                "processed_data/era5_meteorology.csv is ready for feature engineering."
+            )
+            sys.exit(0)
+        logger.error(
+            "ERA5 processing failed.  "
+            "Verify that raw_data/era5_meteorological_india.nc exists "
+            "(run --era5-only --no-dry-run first)."
+        )
+        sys.exit(1)
+
+    elif args.collect_satellite:
+        logger.info("Running Sentinel-5P / MODIS satellite data collector ...")
+        from data_collection_pipeline.sentinel5p_collector import diagnose_credentials
+        
+        credential_info = diagnose_credentials()
+        if not credential_info["overall"]:
+            logger.warning(
+                "Satellite data collection skipped due to missing credentials or dependencies. "
+                "The pipeline will continue with placeholder satellite data."
+            )
+            # Exit with 0 so downstream tasks can run if executed in a chain.
+            sys.exit(0)
+
+        success = sentinel5p_collector.collect_satellite_data(
+            date_str=getattr(args, "date", None)
+        )
+        if success:
+            logger.info(
+                "Satellite collection complete.  "
+                "processed_data/satellite_predictors.csv is ready for feature engineering."
+            )
+            sys.exit(0)
+        logger.error(
+            "Satellite data collection failed during execution.  "
+            "Ensure GEE quotas are not exceeded and network is available."
+        )
+        sys.exit(1)
+
     elif args.prepare_dataset:
         logger.info("Running Day 4A Dataset Preparation pipeline...")
         from data_collection_pipeline.dataset_preparation import dataset_validator, dataset_builder, reporting
@@ -150,13 +253,50 @@ def main_cli():
         logger.info("Step 2/4 and 3/4: Feature-Target Collocation & Dataset Builder")
         df, X, y = dataset_builder.build_analysis_dataset()
         
+        # Pre-save: verify target column is present and non-null in final df
+        target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+        logger.info(
+            "[TARGET COLUMN] Pre-save check before writing analysis_ready_dataset.csv: "
+            "column='%s'", target_col
+        )
+        if target_col not in df.columns:
+            logger.error(
+                "[TARGET COLUMN] '%s' is missing from the final dataset. "
+                "Cannot write analysis_ready_dataset.csv.", target_col
+            )
+            raise ValueError(
+                f"Target column '{target_col}' is missing from the analysis-ready "
+                "dataset. Verify the complete pipeline from CPCB cleaning through "
+                "feature engineering to collocation."
+            )
+        null_count = int(df[target_col].isna().sum())
+        non_null = len(df) - null_count
+        if non_null == 0:
+            logger.error(
+                "[TARGET COLUMN] '%s' is present but entirely null (%d records). "
+                "Cannot write analysis_ready_dataset.csv.", target_col, len(df)
+            )
+            raise ValueError(
+                f"Target column '{target_col}' contains only null values in the "
+                "analysis-ready dataset. Check CPCB source data."
+            )
+        logger.info(
+            "[TARGET COLUMN] Pre-save validation PASSED: '%s' present, "
+            "non-null=%d/%d. Writing analysis_ready_dataset.csv.",
+            target_col, non_null, len(df)
+        )
+        
         # 4. Reporting
         logger.info("Step 4/4: Reporting")
         output_dir = Path(config.DATASET_OUTPUT_DIRECTORY)
         output_dir.mkdir(parents=True, exist_ok=True)
         
         df.to_csv(output_dir / "analysis_ready_dataset.csv", index=False)
-        logger.info("Generated analysis_ready_dataset.csv")
+        logger.info(
+            "Generated analysis_ready_dataset.csv (%d rows, %d columns, "
+            "target column '%s' included).",
+            len(df), len(df.columns), target_col
+        )
         
         summary = reporting.generate_dataset_summary(df, X, y)
         with open(output_dir / "dataset_summary.json", "w") as f:
@@ -196,7 +336,38 @@ def main_cli():
         try:
             df, X, y = dataset_builder.build_analysis_dataset()
             dataset_path = output_dir / "analysis_ready_dataset.csv"
+
+            # Pre-save: verify target column is present and non-null
+            target_col_ml = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+            logger.info(
+                "[TARGET COLUMN] Pre-save check before writing analysis_ready_dataset.csv: "
+                "column='%s'", target_col_ml
+            )
+            if target_col_ml not in df.columns:
+                raise ValueError(
+                    f"Target column '{target_col_ml}' is missing from the analysis-ready "
+                    "dataset. Verify the complete pipeline from CPCB cleaning through "
+                    "feature engineering to collocation."
+                )
+            null_count_ml = int(df[target_col_ml].isna().sum())
+            non_null_ml = len(df) - null_count_ml
+            if non_null_ml == 0:
+                raise ValueError(
+                    f"Target column '{target_col_ml}' contains only null values in the "
+                    "analysis-ready dataset. Check CPCB source data."
+                )
+            logger.info(
+                "[TARGET COLUMN] Pre-save validation PASSED: '%s' present, "
+                "non-null=%d/%d. Writing analysis_ready_dataset.csv.",
+                target_col_ml, non_null_ml, len(df)
+            )
+
             df.to_csv(dataset_path, index=False)
+            logger.info(
+                "Generated analysis_ready_dataset.csv (%d rows, %d columns, "
+                "target column '%s' included).",
+                len(df), len(df.columns), target_col_ml
+            )
             
             summary = reporting.generate_dataset_summary(df, X, y)
             with open(output_dir / "dataset_summary.json", "w") as f:
@@ -230,7 +401,28 @@ def main_cli():
         except Exception as e:
             logger.error(f"Chronological split failed: {e}")
             sys.exit(1)
-            
+
+        # Pre-training: feature lineage validation
+        logger.info("--- Pre-Training: Feature Lineage Validation ---")
+        try:
+            from data_collection_pipeline.feature_engineering.lineage_audit import (
+                validate_features_before_training,
+            )
+            train_file_for_validation = output_dir / "train_dataset.csv"
+            if train_file_for_validation.exists():
+                import pandas as _pd
+                _df_train_check = _pd.read_csv(train_file_for_validation)
+                validate_features_before_training(_df_train_check)
+            else:
+                logger.warning(
+                    "[PRE-TRAINING VALIDATION] train_dataset.csv not found — "
+                    "skipping feature lineage validation."
+                )
+        except Exception as lineage_exc:
+            logger.warning(
+                "Feature lineage validation encountered a non-fatal error: %s", lineage_exc
+            )
+
         # 3. Baseline Model Training
         logger.info("--- Stage 3: Baseline Model Training ---")
         try:
