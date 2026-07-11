@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.6.0] - 2026-07-11
+### Added
+* LightGBM Production Model in [lightgbm_model.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/model_training/lightgbm_model.py):
+  * Comprehensive pre-training dataset verification checks (infinite values, duplicates, constants, missing percentages).
+  * Temporal validation holdout partition splits supporting early stopping.
+  * Central parameter loading from `config.py` using `LIGHTGBM_PARAMS`.
+  * Feature validation report (`lightgbm_feature_validation_report.md`) with model comparative evaluation (LightGBM vs RF).
+  * joblib and JSON serialization of Pipeline, metrics, summary, importances, and config parameters.
+  * Native feature importance extraction and mapping.
+  * Scientific reproducibility tracking (Python, sklearn, lightgbm versions, and random seeds).
+* Dedicated unit/integration tests in [test_lightgbm.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/tests/test_lightgbm.py).
+* Sprint-05 report in `docs/sprints/Sprint-05.md`.
+
+### Changed
+* Integrated LightGBM Regressor into cross-validation pipeline in [cross_validator.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/model_validation/cross_validator.py).
+
+---
+
 ## [0.5.0] - 2026-07-09
 ### Added
 * Random Forest Baseline in [baseline_model.py](file:///Users/soumyadebtripathy/Downloads/StockSphere_Project/Akaash/data_collection_pipeline/model_training/baseline_model.py):
