@@ -98,10 +98,20 @@ def validate_dtypes(df: pd.DataFrame) -> Dict[str, Any]:
         "Temperature", "Relative Humidity", "Boundary Layer Height", "Wind Speed",
         "Wind Direction", "Surface Pressure", "AOD", "HCHO", "NO2 Column",
         "SO2 Column", "CO Column", "O3 Column", "Day of Week", "Month",
-        "satellite_match_distance_km", "era5_match_distance_km"
+        "satellite_match_distance_km", "era5_match_distance_km",
+        "AOD Temporal Offset", "AOD QA Status", "AOD Publication Lag",
+        "HCHO Temporal Offset", "HCHO QA Status", "HCHO Publication Lag",
+        "NO2 Column Temporal Offset", "NO2 Column QA Status", "NO2 Column Publication Lag",
+        "SO2 Column Temporal Offset", "SO2 Column QA Status", "SO2 Column Publication Lag",
+        "CO Column Temporal Offset", "CO Column QA Status", "CO Column Publication Lag",
+        "O3 Column Temporal Offset", "O3 Column QA Status", "O3 Column Publication Lag",
     ]
     
-    string_cols = ["Station ID", "Station Name", "City", "State", "Date", "Time", "Season"]
+    string_cols = [
+        "Station ID", "Station Name", "City", "State", "Date", "Time", "Season",
+        "AOD Obs Date", "HCHO Obs Date", "NO2 Column Obs Date",
+        "SO2 Column Obs Date", "CO Column Obs Date", "O3 Column Obs Date",
+    ]
     bool_cols = ["Weekend Flag"]
     
     for col in df.columns:
@@ -112,8 +122,17 @@ def validate_dtypes(df: pd.DataFrame) -> Dict[str, Any]:
                     "actual": str(df[col].dtype)
                 }
         elif col in string_cols:
-            # Strings in pandas are typically of object or string dtype
-            if not (pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col])):
+            # Strings in pandas are typically of object or string dtype.
+            # However, if the column contains only null values, pandas might infer it as float64.
+            # We allow float64 if all values in the column are null.
+            non_null = df[col].dropna()
+            if not non_null.empty:
+                if not (pd.api.types.is_object_dtype(non_null) or pd.api.types.is_string_dtype(non_null)):
+                    mismatches[col] = {
+                        "expected": "string/object",
+                        "actual": str(df[col].dtype)
+                    }
+            elif not (pd.api.types.is_object_dtype(df[col]) or pd.api.types.is_string_dtype(df[col]) or pd.api.types.is_numeric_dtype(df[col])):
                 mismatches[col] = {
                     "expected": "string/object",
                     "actual": str(df[col].dtype)
@@ -176,7 +195,13 @@ def validate_missing_values(df: pd.DataFrame) -> Dict[str, Any]:
         placeholder_cols = [
             "Temperature", "Relative Humidity", "Boundary Layer Height", "Wind Speed",
             "Wind Direction", "Surface Pressure", "AOD", "HCHO", "NO2 Column",
-            "SO2 Column", "CO Column", "O3 Column"
+            "SO2 Column", "CO Column", "O3 Column",
+            "AOD Obs Date", "AOD Temporal Offset", "AOD QA Status",
+            "HCHO Obs Date", "HCHO Temporal Offset", "HCHO QA Status",
+            "NO2 Column Obs Date", "NO2 Column Temporal Offset", "NO2 Column QA Status",
+            "SO2 Column Obs Date", "SO2 Column Temporal Offset", "SO2 Column QA Status",
+            "CO Column Obs Date", "CO Column Temporal Offset", "CO Column QA Status",
+            "O3 Column Obs Date", "O3 Column Temporal Offset", "O3 Column QA Status",
         ]
         high_missing_non_placeholder = []
         for col, stats in missing_summary.items():

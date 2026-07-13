@@ -47,9 +47,34 @@ def calculate_regression_metrics(y_true: pd.Series, y_pred: np.ndarray) -> Dict[
     logger.info(f"Metrics calculated: {metrics}")
     return metrics
 
-def calculate_feature_importance(model: RandomForestRegressor, feature_cols: List[str]) -> pd.DataFrame:
+def calculate_feature_importance(model: Any, feature_cols: List[str]) -> pd.DataFrame:
     """Calculates feature importance from the model."""
     logger.info("Extracting feature importance...")
+    
+    if hasattr(model, "steps"):  # sklearn Pipeline
+        preprocessor = model.named_steps.get("preprocessor")
+        regressor = model.named_steps.get("regressor")
+        
+        if preprocessor is not None and regressor is not None:
+            # Extract feature names in order
+            feature_names = []
+            for name, trans, cols in preprocessor.transformers_:
+                feature_names.extend(cols)
+            
+            importances = regressor.feature_importances_
+            
+            # Map clean names and importances
+            importances_dict = {}
+            for fname, imp in zip(feature_names, importances):
+                clean_name = fname.split("__")[-1] if "__" in fname else fname
+                importances_dict[clean_name] = float(imp)
+            
+            df_importance = pd.DataFrame(
+                list(importances_dict.items()),
+                columns=["Feature", "Importance"]
+            ).sort_values(by="Importance", ascending=False)
+            return df_importance
+
     if hasattr(model, "feature_importances_"):
         importances = model.feature_importances_
     else:

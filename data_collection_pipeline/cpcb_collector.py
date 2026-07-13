@@ -111,12 +111,13 @@ def process_cpcb_records(df_raw: pd.DataFrame) -> pd.DataFrame:
     existing_cols = [c for c in cols if c in pivoted.columns]
     return pivoted[existing_cols]
 
-def generate_mock_cpcb_data() -> pd.DataFrame:
+def generate_mock_cpcb_data(window_days: int = 1) -> pd.DataFrame:
     """
     Generates realistic CPCB air quality and station data for validation and testing
-    when API keys are missing or API request fails.
+    when API keys are missing or API request fails. Supports a configurable window_days
+    to generate historical daily records.
     """
-    logger.info("Generating realistic mock CPCB air quality data...")
+    logger.info(f"Generating realistic mock CPCB air quality data for {window_days} day(s)...")
     stations = [
         {"state": "Delhi", "city": "Delhi", "station": "Anand Vihar, Delhi - DPCC"},
         {"state": "Delhi", "city": "Delhi", "station": "Dwarka-Sector 8, Delhi - DPCC"},
@@ -133,36 +134,38 @@ def generate_mock_cpcb_data() -> pd.DataFrame:
     ]
     
     mock_records = []
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:00:00")
+    base_time = datetime.datetime.now()
     
-    for s in stations:
-        aqi = random.randint(30, 450)
-        pm25 = int(aqi * random.uniform(0.6, 0.9))
-        pm10 = int(aqi * random.uniform(1.2, 1.8))
-        no2 = int(aqi * random.uniform(0.15, 0.3))
-        so2 = int(aqi * random.uniform(0.05, 0.15))
-        co = round(aqi * random.uniform(0.005, 0.015), 2)
-        o3 = int(aqi * random.uniform(0.2, 0.4))
-        
-        record = {
-            "country": "India",
-            "state": s["state"],
-            "city": s["city"],
-            "station": s["station"],
-            "last_update": now,
-            "PM2.5": pm25,
-            "PM10": pm10,
-            "NO2": no2,
-            "SO2": so2,
-            "CO": co,
-            "O3": o3,
-            "AQI": aqi
-        }
-        mock_records.append(record)
+    for d in range(window_days):
+        now = (base_time - datetime.timedelta(days=d)).strftime("%Y-%m-%d 12:00:00")
+        for s in stations:
+            aqi = random.randint(30, 450)
+            pm25 = int(aqi * random.uniform(0.6, 0.9))
+            pm10 = int(aqi * random.uniform(1.2, 1.8))
+            no2 = int(aqi * random.uniform(0.15, 0.3))
+            so2 = int(aqi * random.uniform(0.05, 0.15))
+            co = round(aqi * random.uniform(0.005, 0.015), 2)
+            o3 = int(aqi * random.uniform(0.2, 0.4))
+            
+            record = {
+                "country": "India",
+                "state": s["state"],
+                "city": s["city"],
+                "station": s["station"],
+                "last_update": now,
+                "PM2.5": pm25,
+                "PM10": pm10,
+                "NO2": no2,
+                "SO2": so2,
+                "CO": co,
+                "O3": o3,
+                "AQI": aqi
+            }
+            mock_records.append(record)
         
     return pd.DataFrame(mock_records)
-
-def collect_cpcb_data() -> pd.DataFrame:
+ 
+def collect_cpcb_data(window_days: int = 1) -> pd.DataFrame:
     """
     Main function to orchestrate CPCB data collection.
     Tries fetching from the API first; falls back to mock data if unsuccessful.
@@ -176,4 +179,4 @@ def collect_cpcb_data() -> pd.DataFrame:
         return df_processed
     else:
         logger.warning("CPCB API data unavailable. Reverting to fallback mock data.")
-        return generate_mock_cpcb_data()
+        return generate_mock_cpcb_data(window_days=window_days)

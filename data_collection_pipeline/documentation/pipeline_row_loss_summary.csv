@@ -1,0 +1,11 @@
+Pipeline Stage,Input Rows,Output Rows,Rows Lost,Reason,Expected/Bug
+Station Registry (sentinel5p_collector.py),161,161,0,All 161 stations valid - no out-of-bounds or duplicate IDs,Expected
+Satellite Collection - GEE sampleRegions (2026-06-30),161,135,26,No valid GEE pixel at station location after QA masking (monsoon cloud cover + orbital gaps). sampleRegions() omits missing stations entirely rather than returning NaN rows.,Expected (monsoon season)
+Satellite Collection - NaN sentinel insertion (FIXED),135,161,0 (26 added back),Bug fix: add NaN rows for the 26 missing stations so spatial matching finds them at 0 km rather than nearest distant station. Without this Mumbai matched to Pune at 110 km and was rejected.,Bug - FIXED
+Feature Integration - merger.py (CPCB join),161,12,149,The merger is driven by CPCB observations (12 stations from mock data). 135 satellite rows are not enumerated; instead the merger finds the nearest satellite point for each of the 12 CPCB stations.,Expected architecture - CPCB is the bottleneck
+Feature Integration - temporal matching,12,12,0,All 12 CPCB observations have timestamp 2026-07-07T12:00:00. Satellite timestamp is 2026-06-29. The nearest strategy finds the only available satellite date - no rows dropped.,Expected (single satellite date)
+Dataset Preparation - collocation filter (before fix),12,9,3,"3 rows rejected: Mumbai BKC (111 km), Mumbai Colaba (111 km), Patna Rajbansi Nagar (62 km). All exceeded 50 km threshold because Mumbai stations and Patna BR_01/BR_02 were missing from satellite CSV.",Bug - FIXED by sentinel row insertion
+Dataset Preparation - collocation filter (after fix),12,12,0,With NaN sentinel rows all CPCB stations now match at 0 km distance. All 12 rows survive the 50 km threshold.,Bug Fixed
+Dataset Preparation - AQI validation,12,12,0,All 12 rows have non-null AQI values from CPCB mock data.,Expected
+Dataset Preparation - deduplication,12,12,0,No duplicate rows found.,Expected
+analysis_ready_dataset.csv (after fix),12,12,0,All 12 CPCB stations produce final rows with satellite NaN where imagery unavailable.,Target state after fix

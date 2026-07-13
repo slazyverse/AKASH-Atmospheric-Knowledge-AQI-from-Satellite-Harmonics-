@@ -106,6 +106,24 @@ def main_cli():
         metavar="YYYY-MM-DD",
         help="Target date for satellite collection (used with --collect-satellite).",
     )
+    parser.add_argument(
+        "--cpcb-window-days",
+        type=int,
+        default=1,
+        help="Number of days of CPCB air quality history to collect (mock mode only).",
+    )
+    parser.add_argument(
+        "--satellite-window-days",
+        type=int,
+        default=1,
+        help="Temporal averaging/search window in days around target date (default 1).",
+    )
+    parser.add_argument(
+        "--satellite-lookback-days",
+        type=int,
+        default=7,
+        help="Number of days to search backwards if imagery is unavailable (default 7).",
+    )
     
     args = parser.parse_args()
     
@@ -122,7 +140,7 @@ def main_cli():
     # Execute specific module or run full pipeline
     if args.cpcb_only:
         logger.info("Running CPCB Air Quality data collector only...")
-        df_cpcb = cpcb_collector.collect_cpcb_data()
+        df_cpcb = cpcb_collector.collect_cpcb_data(window_days=args.cpcb_window_days)
         cpcb_file = config.RAW_DATA_DIR / "cpcb_raw_manual.csv"
         df_cpcb.to_csv(cpcb_file, index=False)
         logger.info(f"CPCB execution complete. Output saved to {cpcb_file}")
@@ -223,7 +241,9 @@ def main_cli():
             sys.exit(0)
 
         success = sentinel5p_collector.collect_satellite_data(
-            date_str=getattr(args, "date", None)
+            date_str=getattr(args, "date", None),
+            temporal_window_days=args.satellite_window_days,
+            lookback_days=args.satellite_lookback_days,
         )
         if success:
             logger.info(
@@ -430,14 +450,15 @@ def main_cli():
             df_train = baseline_model.load_training_data(train_file)
             target_col = baseline_model.select_target_column(df_train)
             X_train, y_train, feature_cols = baseline_model.prepare_training_features(df_train, target_col)
-            model = baseline_model.train_baseline_model(X_train, y_train)
+            model = baseline_model.train_baseline_model(X_train, y_train, feature_cols)
+            importances = baseline_model.get_feature_importances(model)
             training_summary = {
                 "dataset_size": len(X_train),
                 "feature_count": len(feature_cols),
                 "target_column": target_col,
                 "status": "completed"
             }
-            baseline_model.save_trained_model(model, training_summary, config.MODEL_OUTPUT_PATH)
+            baseline_model.save_trained_model(model, training_summary, {}, importances, config.MODEL_OUTPUT_PATH)
         except Exception as e:
             logger.error(f"Model training failed: {e}")
             sys.exit(1)

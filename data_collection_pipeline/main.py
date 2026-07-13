@@ -116,7 +116,8 @@ def run_collection_pipeline(dry_run: bool = True) -> bool:
     cpcb_status = "FAILED"
     cpcb_rows = 0
     try:
-        df_cpcb = cpcb_collector.collect_cpcb_data()
+        cpcb_window = getattr(config, "CPCB_WINDOW_DAYS", 1)
+        df_cpcb = cpcb_collector.collect_cpcb_data(window_days=cpcb_window)
         if df_cpcb is not None and not df_cpcb.empty:
             cpcb_rows = len(df_cpcb)
             cpcb_file = config.RAW_DATA_DIR / f"cpcb_raw_{timestamp}.csv"
