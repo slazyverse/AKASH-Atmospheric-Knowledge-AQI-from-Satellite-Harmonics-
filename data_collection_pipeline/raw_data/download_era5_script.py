@@ -1,6 +1,6 @@
-# Auto-generated script to download ERA5 data for India
-# To run this, install cdsapi: pip install cdsapi
-# And configure your ~/.cdsapirc file with your URL and key details.
+# Auto-generated script to download ERA5 data for India.
+# Requirements: pip install cdsapi
+# Configure credentials: ~/.cdsapirc or CDSAPI_KEY env var.
 
 import cdsapi
 
@@ -16,7 +16,9 @@ request = {
         "10m_v_component_of_wind",
         "total_precipitation",
         "boundary_layer_height",
-        "relative_humidity"
+        "relative_humidity",
+        "surface_pressure",
+        "2m_dewpoint_temperature"
     ],
     "year": "2026",
     "month": "07",
@@ -54,9 +56,8 @@ request = {
         98.0
     ]
 }
-
 target = 'era5_meteorological_india.nc'
 
-print(f"Downloading ERA5 data to {target}...")
+print(f"Downloading ERA5 data to {target} ...")
 client.retrieve(dataset, request, target)
 print("Download complete!")

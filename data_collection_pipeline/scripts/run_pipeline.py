@@ -174,7 +174,6 @@ def main_cli():
         processing_success = False
         if download_success and not resolved_dry_run and credential_info["overall"]:
             logger.info("Download successful. Automatically initiating NetCDF → CSV processing...")
-            from data_collection_pipeline import era5_processor
             processing_success = era5_processor.process_era5_netcdf()
             
         # 4. Validate and write report

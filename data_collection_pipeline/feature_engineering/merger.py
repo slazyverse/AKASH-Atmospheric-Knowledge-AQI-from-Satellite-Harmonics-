@@ -201,15 +201,8 @@ def _nearest_temporal_row(
     if grid.empty or "timestamp" not in grid.columns:
         return grid
 
-    candidates = grid.copy()
-    candidates["timestamp"] = pd.to_datetime(
-        candidates["timestamp"],
-        errors="coerce",
-        format="mixed",
-    )
-    candidates = candidates.dropna(subset=["timestamp"])
-    if candidates.empty:
-        return candidates
+    # grid has already been converted to datetime and cleaned
+    candidates = grid
 
     if strategy == "hourly":
         return candidates[candidates["timestamp"].dt.floor("h") == timestamp.floor("h")]
@@ -239,10 +232,20 @@ def _attach_grid_features(
     temporal_strategy: str,
     is_placeholder: bool = False,
 ) -> pd.DataFrame:
+    # Pre-convert grid timestamps once to avoid slow repeated parsing
+    grid_copy = grid.copy()
+    if not grid_copy.empty and "timestamp" in grid_copy.columns:
+        grid_copy["timestamp"] = pd.to_datetime(
+            grid_copy["timestamp"],
+            errors="coerce",
+            format="mixed",
+        )
+        grid_copy = grid_copy.dropna(subset=["timestamp"])
+
     rows = []
     for _, observation in observations.iterrows():
         timestamp = observation["timestamp"]
-        candidates = _nearest_temporal_row(timestamp, grid, temporal_strategy)
+        candidates = _nearest_temporal_row(timestamp, grid_copy, temporal_strategy)
         nearest = nearest_grid_row(observation["Latitude"], observation["Longitude"], candidates)
         row = observation.to_dict()
         for feature in feature_columns:

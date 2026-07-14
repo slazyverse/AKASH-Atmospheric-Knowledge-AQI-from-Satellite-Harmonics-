@@ -45,6 +45,20 @@ def setup_logging() -> logging.Logger:
 
 logger = setup_logging()
 
+# Default headers used by every outbound request.
+# data.gov.in and several other Indian government APIs return HTTP 502 when
+# they see the default Python/requests User-Agent string.  Using a generic
+# browser-style User-Agent resolves this transparently.
+_DEFAULT_HEADERS: Dict[str, str] = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept": "application/json",
+}
+
+# Reusable global requests session
+_SESSION = requests.Session()
+_SESSION.headers.update(_DEFAULT_HEADERS)
+
+
 def safe_request(
     url: str,
     params: Optional[Dict] = None,
@@ -53,24 +67,34 @@ def safe_request(
     """
     Executes an HTTP GET request with retry logic and exponential backoff.
     Catches specific requests exceptions.
+
+    A reusable ``requests.Session`` is used so that default browser-like headers are
+    sent with every request.  This avoids HTTP 502 responses from APIs (such
+    as data.gov.in) that block the default Python/requests User-Agent.
+
+    Caller-supplied *headers* are merged on top of the session defaults, so
+    any value provided by the caller always takes precedence.
     """
     retries = 0
     backoff = config.BACKOFF_FACTOR
-    
+
+    # Build merged headers: defaults first, then caller overrides.
+    merged_headers: Dict[str, str] = {**_DEFAULT_HEADERS, **(headers or {})}
+
     while retries < config.MAX_RETRIES:
         try:
             logger.info(f"Executing GET request to {url} (Attempt {retries + 1}/{config.MAX_RETRIES})")
-            response = requests.get(
+            response = _SESSION.get(
                 url,
                 params=params,
-                headers=headers,
+                headers=merged_headers,
                 timeout=config.HTTP_TIMEOUT
             )
-            
+
             # Raise exception for 4xx or 5xx status codes
             response.raise_for_status()
             return response
-            
+
         except requests.exceptions.HTTPError as e:
             retries += 1
             logger.warning(f"HTTP error occurred: {e}. Retry {retries}/{config.MAX_RETRIES}...")
@@ -83,12 +107,12 @@ def safe_request(
         except requests.exceptions.RequestException as e:
             retries += 1
             logger.warning(f"Request exception occurred: {e}. Retry {retries}/{config.MAX_RETRIES}...")
-            
+
         if retries < config.MAX_RETRIES:
             sleep_time = backoff ** retries
             logger.info(f"Sleeping for {sleep_time} seconds before retrying...")
             time.sleep(sleep_time)
-            
+
     logger.error(f"Failed to fetch data from {url} after {config.MAX_RETRIES} attempts.")
     return None
 

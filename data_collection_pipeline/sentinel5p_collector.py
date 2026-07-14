@@ -539,17 +539,16 @@ def _authenticate_gee(ee: object) -> None:
     key_json_str = os.environ.get("GEE_SERVICE_ACCOUNT_KEY_JSON")
 
     try:
-        project = (
-            os.getenv("GEE_PROJECT")
-            or os.getenv("GOOGLE_CLOUD_PROJECT")
-            or "aqi-satellite"
-        )
+        # Project ID is resolved centrally from GEE_PROJECT_ID env var via the
+        # config layer. An EnvironmentError is raised at import time if the
+        # variable is missing, so we never silently fall back to a wrong project.
+        project = config.GEE_PROJECT_ID
 
         if sa and key_file and Path(key_file).exists():
             logger.info("Authenticating GEE via service-account key file: %s", key_file)
             credentials = ee.ServiceAccountCredentials(sa, key_file)  # type: ignore[attr-defined]
             logger.info("Initializing Google Earth Engine with project: %s", project)
-            ee.Initialize(credentials=credentials, project=project)  # type: ignore[attr-defined]
+            ee.Initialize(credentials=credentials, project=config.GEE_PROJECT_ID)  # type: ignore[attr-defined]
             logger.info("GEE authenticated via service-account key file.")
             return
 
@@ -564,7 +563,7 @@ def _authenticate_gee(ee: object) -> None:
             try:
                 credentials = ee.ServiceAccountCredentials(sa, tmp_path)  # type: ignore[attr-defined]
                 logger.info("Initializing Google Earth Engine with project: %s", project)
-                ee.Initialize(credentials=credentials, project=project)  # type: ignore[attr-defined]
+                ee.Initialize(credentials=credentials, project=config.GEE_PROJECT_ID)  # type: ignore[attr-defined]
             finally:
                 Path(tmp_path).unlink(missing_ok=True)
             logger.info("GEE authenticated via inline service-account JSON.")
@@ -573,7 +572,7 @@ def _authenticate_gee(ee: object) -> None:
         if gee_cred_path.exists():
             logger.info("Authenticating GEE via OAuth credentials at %s.", gee_cred_path)
             logger.info("Initializing Google Earth Engine with project: %s", project)
-            ee.Initialize(project=project)  # type: ignore[attr-defined]
+            ee.Initialize(project=config.GEE_PROJECT_ID)  # type: ignore[attr-defined]
             logger.info("GEE authenticated via OAuth credentials.")
             return
 
@@ -1317,26 +1316,20 @@ def collect_satellite_data(
     )
 
     # ------------------------------------------------------------------
-    # Step 1: Import and authenticate GEE
+    # Step 1: Validate Google Earth Engine startup configuration and connection
     # ------------------------------------------------------------------
-    try:
-        ee = _try_import_ee()
-    except ImportError as exc:
-        logger.error("%s", exc)
-        return False
-
-    if not _gee_credentials_available():
+    from data_collection_pipeline.earth_engine.validator import validate_gee_startup
+    validation_result = validate_gee_startup()
+    if not validation_result.success:
         logger.error(
-            "No GEE credentials detected.  "
-            "Run 'earthengine authenticate' or configure service-account "
-            "environment variables (GEE_SERVICE_ACCOUNT + key).  "
-            "Satellite data collection aborted."
+            "Google Earth Engine startup validation failed:\n%s",
+            validation_result.error_message
         )
         return False
 
     try:
-        _authenticate_gee(ee)
-    except (MissingGeeCredentialsError, GeeAuthenticationError) as exc:
+        ee = _try_import_ee()
+    except ImportError as exc:
         logger.error("%s", exc)
         return False
 
