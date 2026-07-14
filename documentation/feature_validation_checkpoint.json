@@ -1,0 +1,16 @@
+{
+  "current_stage": "report_generation",
+  "status": "COMPLETE",
+  "stages": {
+    "schema_creation": "COMPLETE",
+    "propagation_validation": "COMPLETE",
+    "report_generation": "COMPLETE"
+  },
+  "findings": {
+    "schema_creation": "Centralized feature schema loaded from validation/feature_schema.py. Configured temporal offset window: [-14, +3] days. Relative Humidity valid_range tightened to (0.0, 100.0); ERA5 spectral artefact tolerance documented.",
+    "propagation_validation": "Validated 60 features. 50 PASS, 7 WARNING (expected), 0 WARNING (investigate), 0 FAIL.",
+    "report_generation": "feature_validation_report.md and feature_validation_summary.csv written."
+  },
+  "next_stage": "none",
+  "last_updated": "2026-07-13T13:11:51Z"
+}

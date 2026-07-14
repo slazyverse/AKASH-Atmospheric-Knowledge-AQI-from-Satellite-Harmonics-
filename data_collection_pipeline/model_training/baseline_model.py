@@ -29,6 +29,18 @@ from data_collection_pipeline import config
 logger = logging.getLogger(__name__)
 
 
+def select_target_column(df: pd.DataFrame) -> str:
+    """Selects the target column based on the configuration."""
+    target = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+    
+    if target not in df.columns:
+        logger.warning(f"Target column '{target}' not found. Falling back to 'PM2.5' if available.")
+        target = "PM2.5" if "PM2.5" in df.columns else df.select_dtypes(include=['number']).columns[-1]
+        
+    logger.info(f"Selected target column: {target}")
+    return target
+
+
 def load_training_data(file_path: Union[str, Path]) -> pd.DataFrame:
     """Loads the training dataset from a CSV file."""
     logger.info(f"Loading training data from {file_path}")

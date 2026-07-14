@@ -1,0 +1,35 @@
+{
+  "stage_completed": "Dataset Preparation",
+  "findings_so_far": {
+    "Station Registry": {
+      "input_rows": 161,
+      "output_rows": 161,
+      "removed_rows": 0,
+      "cause": "All 161 registry stations are validated and geographically bounded within India.",
+      "classification": "Expected"
+    },
+    "Satellite Collection": {
+      "input_rows": 161,
+      "output_rows": 135,
+      "removed_rows": 26,
+      "cause": "GEE sampleRegions() returns no rows for stations entirely covered by monsoon clouds or in orbital gaps on the target date (2026-06-30). Outer join of products results in 135 rows.",
+      "classification": "Expected (due to physical cloud cover and QA masking), but untreated omission causes a downstream matching bug."
+    },
+    "Feature Integration": {
+      "input_rows": 12,
+      "output_rows": 12,
+      "removed_rows": 0,
+      "cause": "CPCB observations drive the integration; only 12 station observations exist in the latest ground-truth dataset. Feature integration joins satellite predictors by finding the nearest grid point for each of the 12 stations.",
+      "classification": "Expected (CPCB observations are the target label bottleneck). However, when GEE data was missing for Mumbai and Patna (before fix), nearest-neighbor matching mapped them to distant cities (Pune/Bhagalpur area) at distances > 50km, which is an implementation bug."
+    },
+    "Dataset Preparation": {
+      "input_rows": 12,
+      "output_rows": 9,
+      "removed_rows": 3,
+      "cause": "The collocation filter correctly rejects rows where satellite_match_distance_km > 50 km. Mumbai BKC (111 km), Mumbai Colaba (111 km), and Patna Rajbansi Nagar (62 km) were rejected before the fix due to mapping to distant GEE stations.",
+      "classification": "Expected behavior for collocation filter, but the resulting row loss is a downstream consequence of the collection-stage bug."
+    }
+  },
+  "fixes_applied": "Sentinel rows with NaN satellite features inserted at Stage 2 ensure that missing-satellite stations match to themselves at 0 km distance, leaving satellite features as NaN without matching distant stations, preserving all 12 rows in the final dataset.",
+  "next_stage_to_run": "None (Pipeline Complete)"
+}

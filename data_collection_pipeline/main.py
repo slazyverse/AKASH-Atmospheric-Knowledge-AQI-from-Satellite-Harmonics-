@@ -26,7 +26,51 @@ def build_station_metadata(df_cpcb: pd.DataFrame, df_openaq: pd.DataFrame) -> pd
             
             # Retrieve approximate coordinates from lookup table
             lat, lon = utils.get_coordinates_for_city(city)
-            
+            if lat is None or lon is None:
+                # Fallback to state capital/major city mapping
+                state_city_map = {
+                    "andhra pradesh": "vijayawada",
+                    "bihar": "patna",
+                    "gujarat": "ahmedabad",
+                    "haryana": "faridabad",
+                    "himachal pradesh": "shimla",
+                    "jammu & kashmir": "srinagar",
+                    "karnataka": "bengaluru",
+                    "kerala": "trivandrum",
+                    "madhya pradesh": "bhopal",
+                    "maharashtra": "mumbai",
+                    "odisha": "bhubaneswar",
+                    "punjab": "ludhiana",
+                    "rajasthan": "jaipur",
+                    "tamil nadu": "chennai",
+                    "telangana": "hyderabad",
+                    "uttar pradesh": "lucknow",
+                    "west bengal": "kolkata",
+                    "assam": "guwahati",
+                    "chhattisgarh": "raipur",
+                    "jharkhand": "ranchi",
+                    "uttarakhand": "dehradun",
+                    "goa": "panaji",
+                    "tripura": "agartala",
+                    "meghalaya": "shillong",
+                    "mizoram": "aizawl",
+                    "nagaland": "kohima",
+                    "arunachal pradesh": "itanagar",
+                    "manipur": "imphal",
+                    "sikkim": "gangtok",
+                    "chandigarh": "chandigarh",
+                    "delhi": "delhi",
+                    "new delhi": "delhi",
+                    "ladakh": "srinagar",
+                }
+                fallback_city = state_city_map.get(str(state).strip().lower())
+                if fallback_city:
+                    lat, lon = utils.get_coordinates_for_city(fallback_city)
+                
+                if lat is None or lon is None:
+                    # Final fallback to India center coordinates
+                    lat, lon = 20.5937, 78.9629
+
             stations_dict[station_name] = {
                 "Station Name": station_name,
                 "City": city,
@@ -116,7 +160,8 @@ def run_collection_pipeline(dry_run: bool = True) -> bool:
     cpcb_status = "FAILED"
     cpcb_rows = 0
     try:
-        df_cpcb = cpcb_collector.collect_cpcb_data()
+        cpcb_window = getattr(config, "CPCB_WINDOW_DAYS", 1)
+        df_cpcb = cpcb_collector.collect_cpcb_data(window_days=cpcb_window)
         if df_cpcb is not None and not df_cpcb.empty:
             cpcb_rows = len(df_cpcb)
             cpcb_file = config.RAW_DATA_DIR / f"cpcb_raw_{timestamp}.csv"

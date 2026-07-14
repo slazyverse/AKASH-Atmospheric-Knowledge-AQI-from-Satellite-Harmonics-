@@ -9,6 +9,10 @@ from data_collection_pipeline.earth_engine.initializer import (
     initialize_ee,
     is_ee_initialized
 )
+from data_collection_pipeline.earth_engine.validator import (
+    validate_gee_startup,
+    GeeValidationResult
+)
 from data_collection_pipeline.earth_engine.dataset_catalog import (
     DatasetCatalog,
     DatasetMetadata
@@ -45,6 +49,8 @@ from data_collection_pipeline.earth_engine.utils import (
 __all__ = [
     "initialize_ee",
     "is_ee_initialized",
+    "validate_gee_startup",
+    "GeeValidationResult",
     "DatasetCatalog",
     "DatasetMetadata",
     "AnalysisGrid",

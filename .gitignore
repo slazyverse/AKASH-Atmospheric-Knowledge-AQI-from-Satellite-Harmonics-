@@ -89,3 +89,8 @@ era5_pipeline_validation_report.md
 # Upstream validation outputs
 upstream_data_generation_report.md
 upstream_operational_validation_report.md
+
+# Environment files
+.env
+*.env
+data_collection_pipeline/.env
