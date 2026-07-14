@@ -165,11 +165,11 @@ def test_serialization(synthetic_dataset):
         # Verify files exist
         tmp_path = Path(tmp_dir)
         assert (tmp_path / "lightgbm_model.joblib").exists()
-        assert (tmp_path / "evaluation_metrics.json").exists()
-        assert (tmp_path / "training_summary.json").exists()
-        assert (tmp_path / "feature_importances.json").exists()
+        assert (tmp_path / "lightgbm_evaluation_metrics.json").exists()
+        assert (tmp_path / "lightgbm_training_summary.json").exists()
+        assert (tmp_path / "lightgbm_feature_importances.json").exists()
         assert (tmp_path / "lightgbm_config.json").exists()
-        assert (tmp_path / "data_validation_report.json").exists()
+        assert (tmp_path / "lightgbm_data_validation_report.json").exists()
         
         # Load and verify prediction
         loaded_model = joblib.load(tmp_path / "lightgbm_model.joblib")

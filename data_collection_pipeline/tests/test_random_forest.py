@@ -85,9 +85,9 @@ def test_random_forest_pipeline_e2e_serialization():
         
         # Verify output files exist
         assert (tmp_path / "baseline_model.joblib").exists()
-        assert (tmp_path / "training_summary.json").exists()
-        assert (tmp_path / "evaluation_metrics.json").exists()
-        assert (tmp_path / "feature_importances.json").exists()
+        assert (tmp_path / "baseline_training_summary.json").exists()
+        assert (tmp_path / "baseline_evaluation_metrics.json").exists()
+        assert (tmp_path / "baseline_feature_importances.json").exists()
         
         # Verify deserialization
         loaded_pipeline = joblib.load(tmp_path / "baseline_model.joblib")
@@ -106,7 +106,7 @@ def test_random_forest_pipeline_e2e_serialization():
         assert preds[0] > 0
         
         # Verify feature importances are sorted
-        with open(tmp_path / "feature_importances.json", "r") as f:
+        with open(tmp_path / "baseline_feature_importances.json", "r") as f:
             importances = json.load(f)
             
         assert len(importances) > 0

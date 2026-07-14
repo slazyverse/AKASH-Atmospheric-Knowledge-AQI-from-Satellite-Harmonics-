@@ -323,17 +323,17 @@ def save_trained_model(
     logger.info(f"Saved trained Pipeline to {model_path}")
     
     # 2. Save performance metrics
-    metrics_path = out_path / "evaluation_metrics.json"
+    metrics_path = out_path / "lightgbm_evaluation_metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4)
         
     # 3. Save training summary
-    summary_path = out_path / "training_summary.json"
+    summary_path = out_path / "lightgbm_training_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=4)
         
     # 4. Save feature importances
-    importances_path = out_path / "feature_importances.json"
+    importances_path = out_path / "lightgbm_feature_importances.json"
     with open(importances_path, "w", encoding="utf-8") as f:
         json.dump(importances, f, indent=4)
         
@@ -343,7 +343,7 @@ def save_trained_model(
         json.dump(lgbm_config, f, indent=4)
         
     # 6. Save validation report
-    val_path = out_path / "data_validation_report.json"
+    val_path = out_path / "lightgbm_data_validation_report.json"
     with open(val_path, "w", encoding="utf-8") as f:
         json.dump(val_report, f, indent=4)
 
@@ -360,9 +360,9 @@ def generate_feature_validation_report(
     
     # Attempt to load baseline RF metrics if they exist
     rf_metrics = None
-    rf_metrics_path = out_path / "evaluation_metrics.json"  # (Usually in baseline output)
+    rf_metrics_path = out_path / "baseline_evaluation_metrics.json"  # (Usually in baseline output)
     # Wait, check standard baseline metrics file
-    rf_alt_path = Path(config.MODEL_OUTPUT_PATH) / "evaluation_metrics.json"
+    rf_alt_path = Path(config.MODEL_OUTPUT_PATH) / "baseline_evaluation_metrics.json"
     if rf_alt_path.exists():
         try:
             with open(rf_alt_path, "r", encoding="utf-8") as f:

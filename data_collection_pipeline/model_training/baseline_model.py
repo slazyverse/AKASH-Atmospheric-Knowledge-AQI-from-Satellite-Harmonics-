@@ -293,25 +293,25 @@ def save_trained_model(
     logger.info(f"Saved trained pipeline model to {model_path}")
     
     # 2. Save summary metadata
-    summary_path = out_path / "training_summary.json"
+    summary_path = out_path / "baseline_training_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=4)
         
     # 3. Save evaluation metrics
-    metrics_path = out_path / "evaluation_metrics.json"
+    metrics_path = out_path / "baseline_evaluation_metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4)
     logger.info(f"Saved performance metrics to {metrics_path}")
     
     # 4. Save feature importances
-    importances_path = out_path / "feature_importances.json"
+    importances_path = out_path / "baseline_feature_importances.json"
     with open(importances_path, "w", encoding="utf-8") as f:
         json.dump(importances, f, indent=4)
     logger.info(f"Saved feature importances to {importances_path}")
     
     # 5. Save validation report
     if validation_report:
-        val_path = out_path / "data_validation_report.json"
+        val_path = out_path / "baseline_data_validation_report.json"
         with open(val_path, "w", encoding="utf-8") as f:
             json.dump(validation_report, f, indent=4)
 
