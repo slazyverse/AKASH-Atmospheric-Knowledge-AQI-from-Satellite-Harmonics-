@@ -1,0 +1,18 @@
+{
+  "current_stage": "regeneration",
+  "status": "COMPLETE",
+  "stages": {
+    "detection": "COMPLETE",
+    "backward_search_handling": "COMPLETE",
+    "provenance_fields": "COMPLETE",
+    "regeneration": "COMPLETE"
+  },
+  "findings": {
+    "detection": "Implemented absolute latest image date detection in GEE using spatial filtering over the India bounding box, resolving GEE search timeout errors.",
+    "backward_search_handling": "Configured query date range extension backwards by lookback_days (default 7 days). This allows server-side sorting and nearest valid pixel selection (via ee.Reducer.first) to automatically pick the closest cloud-free observation.",
+    "provenance_fields": "Integrated `{feature} Publication Lag` columns into OUTPUT_COLUMNS (sentinel5p_collector.py), SATELLITE_RENAME_MAP and SATELLITE_METADATA_FEATURES (merger.py), and numeric_cols (dataset_validator.py). Added mapping from `Pub Lag Days` to `Publication Lag` to guarantee clean propagation.",
+    "regeneration": "Successfully executed the full satellite collector, integration, dataset preparation, and ML training pipelines for the target date 2026-07-07 with lookback=14. The updated dataset now contains 84 rows and 58 columns (including the 6 new publication lag columns). All validators and downstream training tasks passed without errors."
+  },
+  "next_stage": "none",
+  "last_updated": "2026-07-13T10:31:00Z"
+}

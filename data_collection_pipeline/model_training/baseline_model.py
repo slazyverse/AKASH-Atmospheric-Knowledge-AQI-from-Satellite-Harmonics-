@@ -29,6 +29,18 @@ from data_collection_pipeline import config
 logger = logging.getLogger(__name__)
 
 
+def select_target_column(df: pd.DataFrame) -> str:
+    """Selects the target column based on the configuration."""
+    target = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+    
+    if target not in df.columns:
+        logger.warning(f"Target column '{target}' not found. Falling back to 'PM2.5' if available.")
+        target = "PM2.5" if "PM2.5" in df.columns else df.select_dtypes(include=['number']).columns[-1]
+        
+    logger.info(f"Selected target column: {target}")
+    return target
+
+
 def load_training_data(file_path: Union[str, Path]) -> pd.DataFrame:
     """Loads the training dataset from a CSV file."""
     logger.info(f"Loading training data from {file_path}")
@@ -281,25 +293,25 @@ def save_trained_model(
     logger.info(f"Saved trained pipeline model to {model_path}")
     
     # 2. Save summary metadata
-    summary_path = out_path / "training_summary.json"
+    summary_path = out_path / "baseline_training_summary.json"
     with open(summary_path, "w", encoding="utf-8") as f:
         json.dump(summary, f, indent=4)
         
     # 3. Save evaluation metrics
-    metrics_path = out_path / "evaluation_metrics.json"
+    metrics_path = out_path / "baseline_evaluation_metrics.json"
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(metrics, f, indent=4)
     logger.info(f"Saved performance metrics to {metrics_path}")
     
     # 4. Save feature importances
-    importances_path = out_path / "feature_importances.json"
+    importances_path = out_path / "baseline_feature_importances.json"
     with open(importances_path, "w", encoding="utf-8") as f:
         json.dump(importances, f, indent=4)
     logger.info(f"Saved feature importances to {importances_path}")
     
     # 5. Save validation report
     if validation_report:
-        val_path = out_path / "data_validation_report.json"
+        val_path = out_path / "baseline_data_validation_report.json"
         with open(val_path, "w", encoding="utf-8") as f:
             json.dump(validation_report, f, indent=4)
 

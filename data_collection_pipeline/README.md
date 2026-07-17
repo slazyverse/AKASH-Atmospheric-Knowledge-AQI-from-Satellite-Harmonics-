@@ -52,15 +52,47 @@ DATA_GOV_API_KEY=your_datagov_api_key_here
 
 # OpenAQ API Key (obtain from https://explore.openaq.org/)
 OPENAQ_API_KEY=your_openaq_api_key_here
+
+# ── Google Earth Engine ──────────────────────────────────────────────────────
+# REQUIRED for the satellite data pipeline (Sentinel-5P / TROPOMI / MODIS).
+# The project must be registered for Google Earth Engine access.
+# See: https://earthengine.google.com/
+GEE_PROJECT_ID=aqi-satellite
+
+# Optional: Path to a service-account key for headless / CI environments.
+# Leave empty to use interactive OAuth credentials (earthengine authenticate).
+EE_SA_KEY_PATH=
 ```
 
 *Note: If no API keys are provided or network calls fail, the pipeline will log a warning and fall back to producing realistic mock datasets, enabling full end-to-end dry-run tests without keys.*
+*`GEE_PROJECT_ID` is mandatory for the satellite pipeline. The pipeline raises a clear error at startup if it is missing.*
 
 ### 3. Initialize Folders
 To initialize the folder structure separately without running the pipeline:
 ```bash
 python setup.py
 ```
+
+---
+
+## 🩺 GEE Startup Validation
+
+Before running the satellite pipeline, verify that Google Earth Engine is correctly configured:
+
+```bash
+# Requires GEE_PROJECT_ID to be set and earthengine authenticate to have been run
+python -m data_collection_pipeline.earth_engine.validator
+```
+
+The validator checks four things in order:
+
+1. `GEE_PROJECT_ID` environment variable is set
+2. Earth Engine credentials exist (OAuth or service-account)
+3. `ee.Initialize(project=GEE_PROJECT_ID)` succeeds
+4. The public collection `COPERNICUS/S5P/OFFL/L3_NO2` can be queried
+
+Each step exits immediately with a clear, actionable error message if it fails (exit code `1`).
+Exit code `0` means the pipeline is production-ready.
 
 ---
 

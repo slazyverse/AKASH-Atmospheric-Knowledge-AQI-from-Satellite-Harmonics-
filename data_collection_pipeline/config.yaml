@@ -1,0 +1,30 @@
+# Grid generation parameters
+grid:
+  lon_min: 68.0
+  lon_max: 98.0
+  lat_min: 8.0
+  lat_max: 38.0
+  default_resolution: 300
+  high_res_resolution: 600
+
+# Interpolation parameters
+interpolation:
+  method: "linear" # options: "linear", "nearest", "cubic"
+
+# DBSCAN parameters for hotspot clustering
+dbscan:
+  eps: 2.5
+  min_samples: 3
+  percentile: 0.90
+
+# Output directories
+paths:
+  experiments_dir: "experiments"
+  reports_dir: "reports"
+  plots_dir: "plots"
+
+# Color scheme definitions
+colors:
+  aqi_cmap: "YlOrRd"
+  hcho_cmap: "Purples"
+  scatter_edge: "k"

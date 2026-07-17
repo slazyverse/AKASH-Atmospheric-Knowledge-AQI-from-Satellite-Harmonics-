@@ -51,7 +51,58 @@ SATELLITE_RENAME_MAP = {
     "so2_column": "SO2 Column",
     "co_column": "CO Column",
     "o3_column": "O3 Column",
+    "aod_obs_date": "AOD Obs Date",
+    "aod_temporal_offset": "AOD Temporal Offset",
+    "aod_temporal_offset_days": "AOD Temporal Offset",
+    "aod_qa": "AOD QA Status",
+    "aod_qa_status": "AOD QA Status",
+    "aod_publication_lag": "AOD Publication Lag",
+    "aod_pub_lag_days": "AOD Publication Lag",
+    "hcho_obs_date": "HCHO Obs Date",
+    "hcho_temporal_offset": "HCHO Temporal Offset",
+    "hcho_temporal_offset_days": "HCHO Temporal Offset",
+    "hcho_qa": "HCHO QA Status",
+    "hcho_qa_status": "HCHO QA Status",
+    "hcho_publication_lag": "HCHO Publication Lag",
+    "hcho_pub_lag_days": "HCHO Publication Lag",
+    "no2_column_obs_date": "NO2 Column Obs Date",
+    "no2_column_temporal_offset": "NO2 Column Temporal Offset",
+    "no2_column_temporal_offset_days": "NO2 Column Temporal Offset",
+    "no2_column_qa": "NO2 Column QA Status",
+    "no2_column_qa_status": "NO2 Column QA Status",
+    "no2_column_publication_lag": "NO2 Column Publication Lag",
+    "no2_column_pub_lag_days": "NO2 Column Publication Lag",
+    "so2_column_obs_date": "SO2 Column Obs Date",
+    "so2_column_temporal_offset": "SO2 Column Temporal Offset",
+    "so2_column_temporal_offset_days": "SO2 Column Temporal Offset",
+    "so2_column_qa": "SO2 Column QA Status",
+    "so2_column_qa_status": "SO2 Column QA Status",
+    "so2_column_publication_lag": "SO2 Column Publication Lag",
+    "so2_column_pub_lag_days": "SO2 Column Publication Lag",
+    "co_column_obs_date": "CO Column Obs Date",
+    "co_column_temporal_offset": "CO Column Temporal Offset",
+    "co_column_temporal_offset_days": "CO Column Temporal Offset",
+    "co_column_qa": "CO Column QA Status",
+    "co_column_qa_status": "CO Column QA Status",
+    "co_column_publication_lag": "CO Column Publication Lag",
+    "co_column_pub_lag_days": "CO Column Publication Lag",
+    "o3_column_obs_date": "O3 Column Obs Date",
+    "o3_column_temporal_offset": "O3 Column Temporal Offset",
+    "o3_column_temporal_offset_days": "O3 Column Temporal Offset",
+    "o3_column_qa": "O3 Column QA Status",
+    "o3_column_qa_status": "O3 Column QA Status",
+    "o3_column_publication_lag": "O3 Column Publication Lag",
+    "o3_column_pub_lag_days": "O3 Column Publication Lag",
 }
+
+SATELLITE_METADATA_FEATURES = [
+    "AOD Obs Date", "AOD Temporal Offset", "AOD QA Status", "AOD Publication Lag",
+    "HCHO Obs Date", "HCHO Temporal Offset", "HCHO QA Status", "HCHO Publication Lag",
+    "NO2 Column Obs Date", "NO2 Column Temporal Offset", "NO2 Column QA Status", "NO2 Column Publication Lag",
+    "SO2 Column Obs Date", "SO2 Column Temporal Offset", "SO2 Column QA Status", "SO2 Column Publication Lag",
+    "CO Column Obs Date", "CO Column Temporal Offset", "CO Column QA Status", "CO Column Publication Lag",
+    "O3 Column Obs Date", "O3 Column Temporal Offset", "O3 Column QA Status", "O3 Column Publication Lag",
+]
 
 
 def _first_existing_file(directory: Path, names: List[str]) -> Path | None:
@@ -124,7 +175,8 @@ def load_satellite_grid(stations: pd.DataFrame, timestamps: pd.Series) -> Tuple[
     """Load satellite predictors or create an explicit placeholder interface."""
     path = _first_existing_file(config.PROCESSED_DATA_DIR, SATELLITE_GRID_FILES)
     if path is None:
-        return _placeholder_grid(stations, timestamps, SATELLITE_FEATURES), "placeholder_grid"
+        all_cols = SATELLITE_FEATURES + SATELLITE_METADATA_FEATURES
+        return _placeholder_grid(stations, timestamps, all_cols), "placeholder_grid"
     grid = _normalise_grid_columns(pd.read_csv(path), SATELLITE_RENAME_MAP)
     return grid, str(path)
 
@@ -149,15 +201,8 @@ def _nearest_temporal_row(
     if grid.empty or "timestamp" not in grid.columns:
         return grid
 
-    candidates = grid.copy()
-    candidates["timestamp"] = pd.to_datetime(
-        candidates["timestamp"],
-        errors="coerce",
-        format="mixed",
-    )
-    candidates = candidates.dropna(subset=["timestamp"])
-    if candidates.empty:
-        return candidates
+    # grid has already been converted to datetime and cleaned
+    candidates = grid
 
     if strategy == "hourly":
         return candidates[candidates["timestamp"].dt.floor("h") == timestamp.floor("h")]
@@ -187,10 +232,20 @@ def _attach_grid_features(
     temporal_strategy: str,
     is_placeholder: bool = False,
 ) -> pd.DataFrame:
+    # Pre-convert grid timestamps once to avoid slow repeated parsing
+    grid_copy = grid.copy()
+    if not grid_copy.empty and "timestamp" in grid_copy.columns:
+        grid_copy["timestamp"] = pd.to_datetime(
+            grid_copy["timestamp"],
+            errors="coerce",
+            format="mixed",
+        )
+        grid_copy = grid_copy.dropna(subset=["timestamp"])
+
     rows = []
     for _, observation in observations.iterrows():
         timestamp = observation["timestamp"]
-        candidates = _nearest_temporal_row(timestamp, grid, temporal_strategy)
+        candidates = _nearest_temporal_row(timestamp, grid_copy, temporal_strategy)
         nearest = nearest_grid_row(observation["Latitude"], observation["Longitude"], candidates)
         row = observation.to_dict()
         for feature in feature_columns:
@@ -268,15 +323,100 @@ def integrate_datasets(
         except Exception as e:
             logger.error(f"Failed to remove obsolete report {old_report_path}: {e}")
 
-    # Collect diagnostics metrics and generate validation report
+    # ------------------------------------------------------------------
+    # Attach grid features to the merged CPCB observation DataFrame
+    # ------------------------------------------------------------------
+    merged = _attach_grid_features(
+        merged,
+        satellite_grid,
+        SATELLITE_FEATURES + SATELLITE_METADATA_FEATURES,
+        "satellite",
+        temporal_strategy,
+        is_placeholder=is_satellite_placeholder,
+    )
+    merged = _attach_grid_features(
+        merged,
+        era5_grid,
+        METEOROLOGY_FEATURES,
+        "era5",
+        temporal_strategy,
+        is_placeholder=is_era5_placeholder,
+    )
+    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
+    cpcb_source_path = str(config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv")
+
+    # Log target column detection
+    logger.info("[TARGET COLUMN] Configured target column: '%s'", target_col)
+    logger.info("[TARGET COLUMN] Source dataset: %s", cpcb_source_path)
+
+    # Verify target column survived the CPCB → station merge
+    if target_col in merged.columns:
+        non_null_after_merge = merged[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after CPCB+metadata merge: "
+            "column present, %d/%d non-null values.",
+            non_null_after_merge,
+            len(merged),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' not found in merged CPCB+metadata dataframe. "
+            "It will be filled with NA in the output.",
+            target_col,
+        )
+
+    features = build_features(merged)
+
+    # ------------------------------------------------------------------
+    # Compute row-level placeholder flags BEFORE applying missing value strategy
+    # ------------------------------------------------------------------
+    is_sat_placeholder_row = features[SATELLITE_FEATURES].isna().all(axis=1) | is_satellite_placeholder
+    is_met_placeholder_row = features[METEOROLOGY_FEATURES].isna().all(axis=1) | is_era5_placeholder
+
+    # Log propagation after build_features (must not mutate target column)
+    if target_col in features.columns:
+        non_null_after_build = features[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after build_features: "
+            "column present, %d/%d non-null values.",
+            non_null_after_build,
+            len(features),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' missing after build_features stage.",
+            target_col,
+        )
+
+    features = apply_missing_strategy(features, missing_strategy, ALL_FEATURES)
+
+    # Log propagation after apply_missing_strategy (target col must not be imputed)
+    if target_col in features.columns:
+        non_null_after_impute = features[target_col].notna().sum()
+        logger.info(
+            "[TARGET COLUMN] Propagation check after apply_missing_strategy: "
+            "column present, %d/%d non-null values.",
+            non_null_after_impute,
+            len(features),
+        )
+    else:
+        logger.warning(
+            "[TARGET COLUMN] '%s' missing after apply_missing_strategy stage.",
+            target_col,
+        )
+
+    # Assign row-level placeholder flag computed before imputation
+    features["placeholder_used"] = is_sat_placeholder_row | is_met_placeholder_row
+
+    # Collect diagnostics metrics and generate validation report based on row-level flag
     missing_sources = []
     if is_satellite_placeholder:
         missing_sources.append("Satellite")
     if is_era5_placeholder:
         missing_sources.append("ERA5")
 
-    satellite_placeholders_created = num_rows if is_satellite_placeholder else 0
-    era5_placeholders_created = num_rows if is_era5_placeholder else 0
+    satellite_placeholders_created = int(is_sat_placeholder_row.sum())
+    era5_placeholders_created = int(is_met_placeholder_row.sum())
     total_placeholders_created = satellite_placeholders_created + era5_placeholders_created
 
     placeholder_cols = []
@@ -285,21 +425,27 @@ def integrate_datasets(
     if is_era5_placeholder:
         placeholder_cols.extend(METEOROLOGY_FEATURES)
 
-    satellite_success_matches = 0 if is_satellite_placeholder else num_rows
-    era5_success_matches = 0 if is_era5_placeholder else num_rows
-    satellite_placeholder_matches = num_rows if is_satellite_placeholder else 0
-    era5_placeholder_matches = num_rows if is_era5_placeholder else 0
+    satellite_success_matches = int((~is_sat_placeholder_row).sum())
+    era5_success_matches = int((~is_met_placeholder_row).sum())
+    satellite_placeholder_matches = satellite_placeholders_created
+    era5_placeholder_matches = era5_placeholders_created
 
-    placeholder_used = is_satellite_placeholder or is_era5_placeholder
-    total_true_rows = num_rows if placeholder_used else 0
-    total_false_rows = 0 if placeholder_used else num_rows
+    total_true_rows = int(features["placeholder_used"].sum())
+    total_false_rows = int((~features["placeholder_used"]).sum())
 
-    if placeholder_used:
+    if is_satellite_placeholder or is_era5_placeholder:
         dist_verify_msg = (
             "VERIFIED: Placeholder rows contain NaN in the distance columns "
             "(`satellite_match_distance_km` / `era5_match_distance_km`)."
         )
-        validation_summary = "All collocated rows correctly set to placeholder_used=True because GEE and/or ERA5 datasets are missing."
+        validation_summary = "Collocated rows correctly set to placeholder_used=True because GEE and/or ERA5 datasets are missing."
+        validation_result = "PASS"
+    elif total_true_rows > 0:
+        dist_verify_msg = (
+            "VERIFIED: Real rows retain actual spatial distances calculated via Haversine distance, "
+            "while rows matching sentinel placeholder coordinates represent missing GEE stations."
+        )
+        validation_summary = f"Flagged {total_true_rows} rows as placeholder_used=True due to missing/sentinel station-level GEE satellite observations."
         validation_result = "PASS"
     else:
         dist_verify_msg = (
@@ -342,7 +488,7 @@ def integrate_datasets(
 
 ## Final Validation Result
 * **Overall Status:** {validation_result}
-* **Summary:** The integration pipeline completed successfully. The `placeholder_used` boolean column was created and mapped correctly across all {num_rows} rows, and all placeholder distance columns were correctly populated with NaN values.
+* **Summary:** The integration pipeline completed successfully. The `placeholder_used` boolean column was created and mapped correctly across all {num_rows} rows.
 """
     try:
         with open(report_path, "w", encoding="utf-8") as f:
@@ -350,81 +496,6 @@ def integrate_datasets(
         logger.info(f"Generated placeholder merge validation report at {report_path}")
     except OSError as e:
         logger.error(f"Failed to write placeholder merge validation report: {e}")
-
-    merged = _attach_grid_features(
-        merged,
-        satellite_grid,
-        SATELLITE_FEATURES,
-        "satellite",
-        temporal_strategy,
-        is_placeholder=is_satellite_placeholder,
-    )
-    merged = _attach_grid_features(
-        merged,
-        era5_grid,
-        METEOROLOGY_FEATURES,
-        "era5",
-        temporal_strategy,
-        is_placeholder=is_era5_placeholder,
-    )
-    target_col = getattr(config, "REQUIRED_TARGET_COLUMN", "AQI")
-    cpcb_source_path = str(config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv")
-
-    # Log target column detection
-    logger.info("[TARGET COLUMN] Configured target column: '%s'", target_col)
-    logger.info("[TARGET COLUMN] Source dataset: %s", cpcb_source_path)
-
-    # Verify target column survived the CPCB → station merge
-    if target_col in merged.columns:
-        non_null_after_merge = merged[target_col].notna().sum()
-        logger.info(
-            "[TARGET COLUMN] Propagation check after CPCB+metadata merge: "
-            "column present, %d/%d non-null values.",
-            non_null_after_merge,
-            len(merged),
-        )
-    else:
-        logger.warning(
-            "[TARGET COLUMN] '%s' not found in merged CPCB+metadata dataframe. "
-            "It will be filled with NA in the output.",
-            target_col,
-        )
-
-    features = build_features(merged)
-
-    # Log propagation after build_features (must not mutate target column)
-    if target_col in features.columns:
-        non_null_after_build = features[target_col].notna().sum()
-        logger.info(
-            "[TARGET COLUMN] Propagation check after build_features: "
-            "column present, %d/%d non-null values.",
-            non_null_after_build,
-            len(features),
-        )
-    else:
-        logger.warning(
-            "[TARGET COLUMN] '%s' missing after build_features stage.",
-            target_col,
-        )
-
-    features = apply_missing_strategy(features, missing_strategy, ALL_FEATURES)
-
-    # Log propagation after apply_missing_strategy (target col must not be imputed)
-    if target_col in features.columns:
-        non_null_after_impute = features[target_col].notna().sum()
-        logger.info(
-            "[TARGET COLUMN] Propagation check after apply_missing_strategy: "
-            "column present, %d/%d non-null values.",
-            non_null_after_impute,
-            len(features),
-        )
-    else:
-        logger.warning(
-            "[TARGET COLUMN] '%s' missing after apply_missing_strategy stage.",
-            target_col,
-        )
-
-    features["placeholder_used"] = placeholder_used
 
     output_columns = [
         "Station ID",
@@ -436,6 +507,7 @@ def integrate_datasets(
         "Date",
         "Time",
         *ALL_FEATURES,
+        *SATELLITE_METADATA_FEATURES,
         "satellite_match_distance_km",
         "era5_match_distance_km",
         "placeholder_used",

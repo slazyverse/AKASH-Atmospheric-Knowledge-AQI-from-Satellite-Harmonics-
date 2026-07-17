@@ -96,8 +96,8 @@ def test_baseline_and_cv_pipeline_flow():
         model_pipeline = run_training_pipeline(csv_file, tmp_path)
         assert isinstance(model_pipeline, Pipeline)
         assert (tmp_path / "baseline_model.joblib").exists()
-        assert (tmp_path / "training_summary.json").exists()
-        assert (tmp_path / "data_validation_report.json").exists()
+        assert (tmp_path / "baseline_training_summary.json").exists()
+        assert (tmp_path / "baseline_data_validation_report.json").exists()
         
         # 2. Run cross validation pipeline
         run_cross_validation(csv_file, tmp_path)

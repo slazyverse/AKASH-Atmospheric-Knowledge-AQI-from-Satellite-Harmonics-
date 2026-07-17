@@ -1,0 +1,16 @@
+{
+  "stage_completed": "Final Reports",
+  "findings_so_far": {
+    "trace_results": {
+      "creation": "The placeholder_used flag is created in data_collection_pipeline/feature_engineering/merger.py (line 352).",
+      "definition": "It is calculated as the logical OR of is_sat_placeholder_row and is_met_placeholder_row, which check if all satellite or meteorology features in a row are NaN, or if global placeholder datasets are active.",
+      "imputation_collision": "Because the flag was computed AFTER apply_missing_strategy() has imputed NaN values, any row where missing values were successfully filled would have all-numeric values, causing isna().all(axis=1) to return False and clearing the placeholder_used flag.",
+      "original_all_false_cause": "Before the sentinel row fix, missing satellite stations matched distant GEE stations with non-NaN features (e.g. Mumbai matched Pune). Therefore, no rows had all-NaN satellite features, and placeholder_used was False for every row. Under local test conditions with sentinel rows, if the missing strategy is not 'leave_missing' and medians are non-null, the NaNs get filled and the flag is also cleared."
+    },
+    "classification": "Outdated flag semantics and implementation bug. The sentinel rows should be flagged as placeholder_used=True, and the flag must be calculated before features are imputed.",
+    "fix_status": "Completed: Moved the calculation of is_sat_placeholder_row and is_met_placeholder_row to right after build_features() and before apply_missing_strategy() in merger.py, then assigned features['placeholder_used'] = is_sat_placeholder_row | is_met_placeholder_row after apply_missing_strategy().",
+    "regeneration_status": "Success: Regenerated merged_feature_table.csv and analysis_ready_dataset.csv. Verified that the sentinel rows retain placeholder_used=True even when missing value strategies are applied.",
+    "reporting_status": "Success: Generated documentation/placeholder_flag_audit_report.md summarizing implementation trace, semantics, behavior, root cause, fix, and recommendations."
+  },
+  "next_stage_to_run": "None (Audit Complete)"
+}

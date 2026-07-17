@@ -14,7 +14,8 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LinearRegression
 from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor
-from sklearn.model_selection import KFold, cross_validate
+from lightgbm import LGBMRegressor
+from sklearn.model_selection import TimeSeriesSplit, cross_validate
 from sklearn.pipeline import Pipeline
 
 from data_collection_pipeline.feature_engineering import (
@@ -96,7 +97,7 @@ def perform_cross_validation(X: pd.DataFrame, y: pd.Series, feature_cols: List[s
         n_splits = target_folds
         
     logger.info(f"Using {n_splits}-fold cross-validation.")
-    cv = KFold(n_splits=n_splits, shuffle=True, random_state=42)
+    cv = TimeSeriesSplit(n_splits=n_splits)
     
     prep_pipeline = build_preprocessing_pipeline(feature_cols)
     preprocessor = prep_pipeline.named_steps["preprocessor"]
@@ -109,6 +110,10 @@ def perform_cross_validation(X: pd.DataFrame, y: pd.Series, feature_cols: List[s
         "Random Forest Regressor": Pipeline(steps=[
             ("preprocessor", preprocessor),
             ("regressor", RandomForestRegressor(**config.RANDOM_FOREST_PARAMS))
+        ]),
+        "LightGBM Regressor": Pipeline(steps=[
+            ("preprocessor", preprocessor),
+            ("regressor", LGBMRegressor(**getattr(config, "LIGHTGBM_PARAMS", {})))
         ]),
         "Extra Trees Regressor": Pipeline(steps=[
             ("preprocessor", preprocessor),
