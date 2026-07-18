@@ -1,0 +1,20 @@
+feature,completeness_before_percentage,completeness_after_percentage,completeness_gain_percentage
+PM2.5,100.0,100.0,0.0
+PM10,0.0,0.24,0.24
+NO2,0.0,0.24,0.24
+SO2,0.0,0.24,0.24
+CO,0.0,0.24,0.24
+O3,0.0,0.24,0.24
+AQI,100.0,99.76,-0.24
+Temperature,100.0,99.73,-0.27
+Relative Humidity,100.0,99.73,-0.27
+Boundary Layer Height,100.0,99.73,-0.27
+Surface Pressure,100.0,99.73,-0.27
+Wind Speed,100.0,99.73,-0.27
+Wind Direction,100.0,99.73,-0.27
+HCHO,100.0,99.73,-0.27
+NO2 Column,100.0,99.73,-0.27
+CO Column,100.0,99.73,-0.27
+AOD,41.68,62.29,20.61
+AOD_047,41.68,62.29,20.61
+AOD_055,41.68,62.29,20.61

@@ -1,0 +1,4 @@
+feature_name,source,present_or_missing,populated_percentage,included_in_ard,included_in_validation
+elevation,SRTM / Static Features,present,100.0,Yes,Yes
+land_cover_code,ESA WorldCover / Static Features,present,100.0,Yes,Yes
+distance_to_coast,Natural Earth / Static Features,present,100.0,Yes,Yes

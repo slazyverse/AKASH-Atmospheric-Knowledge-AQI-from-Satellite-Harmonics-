@@ -9,25 +9,44 @@ from data_collection_pipeline import config, utils
 
 logger = logging.getLogger("data_collection_pipeline.openaq")
 
-def fetch_openaq_raw(limit: int = 1000) -> Optional[pd.DataFrame]:
+def fetch_openaq_raw(
+    limit: int = 1000,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+) -> Optional[pd.DataFrame]:
     """
     Fetches raw measurements for country=IN from the OpenAQ API.
     Sends API keys in headers if provided.
     Safely handles nested JSON keys, null coordinates, null timestamps,
     and malformed responses.
+
+    Parameters
+    ----------
+    limit:
+        Maximum number of records to request per API call.
+    date_from:
+        Optional ISO-8601 date string (``YYYY-MM-DD``) restricting the start
+        of the measurement window.  When ``None`` the API applies its own
+        default (typically the last 24 h).
+    date_to:
+        Optional ISO-8601 date string (``YYYY-MM-DD``) restricting the end of
+        the measurement window.  When ``None`` the API applies its own default.
     """
     if not config.OPENAQ_API_KEY:
-        logger.warning("OPENAQ_API_KEY not found in config. Falling back to Mock Data.")
-        return None
+        logger.warning("OPENAQ_API_KEY not found. Proceeding without API key (rate limits will apply).")
 
-    headers = {
-        "X-API-Key": config.OPENAQ_API_KEY
-    }
-    
+    headers = {}
+    if config.OPENAQ_API_KEY:
+        headers["X-API-Key"] = config.OPENAQ_API_KEY
+
     params = {
         "country": "IN",
-        "limit": limit
+        "limit": limit,
     }
+    if date_from is not None:
+        params["date_from"] = date_from
+    if date_to is not None:
+        params["date_to"] = date_to
     
     response = utils.safe_request(config.OPENAQ_BASE_URL, params=params, headers=headers)
     if response is None:
@@ -96,8 +115,8 @@ def fetch_openaq_raw(limit: int = 1000) -> Optional[pd.DataFrame]:
                 "city": city,
                 "latitude": latitude,
                 "longitude": longitude,
-                "utc_time": utc_time,
-                "local_time": local_time,
+                "timestamp_utc": utc_time,
+                "timestamp_local": local_time,
                 "parameter": parameter,
                 "value": value,
                 "unit": unit
@@ -125,14 +144,18 @@ def process_openaq_records(df_raw: pd.DataFrame) -> pd.DataFrame:
     Pivots the raw OpenAQ long format data to make columns for each parameter.
     Ensures safe handling of potential nulls in pivoted columns.
     """
-    required_cols = {"location", "city", "country", "latitude", "longitude", "utc_time", "parameter", "value"}
+    required_cols = {"location", "city", "country", "latitude", "longitude", "timestamp_utc", "parameter", "value"}
     if not required_cols.issubset(df_raw.columns):
         logger.error(f"OpenAQ raw data missing required columns for pivoting: {required_cols - set(df_raw.columns)}")
         return df_raw
 
+    # Robust timestamp parsing to prevent NaT propagation
+    df_raw["timestamp_utc"] = pd.to_datetime(df_raw["timestamp_utc"], utc=True, errors="coerce")
+    df_raw = df_raw.dropna(subset=["timestamp_utc"])
+
     # Pivot to put parameter values in separate columns
     pivoted = df_raw.pivot_table(
-        index=["location", "city", "country", "latitude", "longitude", "utc_time"],
+        index=["location", "city", "country", "latitude", "longitude", "timestamp_utc", "timestamp_local"],
         columns="parameter",
         values="value",
         aggfunc="first"
@@ -156,64 +179,81 @@ def process_openaq_records(df_raw: pd.DataFrame) -> pd.DataFrame:
             
     return pivoted
 
-def generate_mock_openaq_data() -> pd.DataFrame:
-    """
-    Generates realistic OpenAQ data for testing.
-    Uses stations with coordinates inside India.
-    """
-    logger.info("Generating realistic mock OpenAQ air quality data...")
-    stations = [
-        {"location": "Anand Vihar, Delhi - DPCC", "city": "Delhi", "lat": 28.6476, "lon": 77.3158},
-        {"location": "Bandra Kurla Complex, Mumbai - MPCB", "city": "Mumbai", "lat": 19.0626, "lon": 72.8617},
-        {"location": "Silk Board, Bengaluru - KSPCB", "city": "Bengaluru", "lat": 12.9174, "lon": 77.6228},
-        {"location": "Victoria, Kolkata - WBPCB", "city": "Kolkata", "lat": 22.5448, "lon": 88.3426},
-        {"location": "Velachery, Chennai - TNPCB", "city": "Chennai", "lat": 12.9894, "lon": 80.2172},
-        {"location": "Sanathnagar, Hyderabad - TSPCB", "city": "Hyderabad", "lat": 17.4589, "lon": 78.4412},
-        {"location": "Lalbagh, Lucknow - UPPCB", "city": "Lucknow", "lat": 26.8524, "lon": 80.9392},
-        {"location": "Rajbansi Nagar, Patna - BSPCB", "city": "Patna", "lat": 25.6025, "lon": 85.1112},
-    ]
-    
-    mock_records = []
-    now_utc = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:00:00Z")
-    
-    for s in stations:
-        pm25 = random.uniform(15.0, 300.0)
-        pm10 = pm25 * random.uniform(1.2, 2.0)
-        no2 = random.uniform(5.0, 80.0)
-        so2 = random.uniform(2.0, 30.0)
-        co = random.uniform(0.1, 4.0)
-        o3 = random.uniform(10.0, 150.0)
-        
-        row = {
-            "location": s["location"],
-            "city": s["city"],
-            "country": "IN",
-            "latitude": s["lat"],
-            "longitude": s["lon"],
-            "utc_time": now_utc,
-            "PM2.5": round(pm25, 2),
-            "PM10": round(pm10, 2),
-            "NO2": round(no2, 2),
-            "SO2": round(so2, 2),
-            "CO": round(co, 2),
-            "O3": round(o3, 2)
-        }
-        mock_records.append(row)
-        
-    return pd.DataFrame(mock_records)
 
-def collect_openaq_data() -> pd.DataFrame:
+
+def collect_openaq_data(
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
+) -> pd.DataFrame:
     """
     Main function to orchestrate OpenAQ data collection.
     Tries fetching from the API first; falls back to mock data if unsuccessful.
+
+    Parameters
+    ----------
+    date_from:
+        Optional ISO-8601 date string (``YYYY-MM-DD``) for the start of the
+        measurement window.  ``None`` uses the API default (last 24 h).
+    date_to:
+        Optional ISO-8601 date string (``YYYY-MM-DD``) for the end of the
+        measurement window.  ``None`` uses the API default.
     """
     logger.info("Starting OpenAQ Air Quality data collection...")
-    df_raw = fetch_openaq_raw()
+    if not date_from and not date_to:
+        df_raw = fetch_openaq_raw(date_from=date_from, date_to=date_to)
+        if df_raw is not None and not df_raw.empty:
+            logger.info(f"Successfully fetched {len(df_raw)} raw rows from OpenAQ API. Post-processing...")
+            df_processed = process_openaq_records(df_raw)
+            return df_processed
+        else:
+            logger.warning("OpenAQ API data unavailable.")
+            return pd.DataFrame()
+
+    # Parse inputs to Timestamps
+    start_dt = pd.to_datetime(date_from) if date_from else pd.Timestamp.now() - pd.Timedelta(days=1)
+    end_dt = pd.to_datetime(date_to) if date_to else pd.Timestamp.now()
     
-    if df_raw is not None and not df_raw.empty:
+    # Ensure start_dt is localized/naive appropriately
+    if start_dt.tz is not None:
+        start_dt = start_dt.tz_localize(None)
+    if end_dt.tz is not None:
+        end_dt = end_dt.tz_localize(None)
+        
+    # Generate calendar monthly chunks
+    import calendar
+    chunks = []
+    curr = start_dt
+    while curr < end_dt:
+        _, last_day = calendar.monthrange(curr.year, curr.month)
+        curr_end = curr.replace(day=last_day, hour=23, minute=59, second=59)
+        if curr_end > end_dt:
+            curr_end = end_dt
+        chunks.append((curr, curr_end))
+        
+        # Move to next month
+        next_month_dt = curr_end + pd.Timedelta(seconds=1)
+        if next_month_dt.day != 1:
+            next_month_dt = (next_month_dt + pd.DateOffset(months=1)).replace(day=1)
+        curr = next_month_dt
+        
+    all_raw_dfs = []
+    for c_start, c_end in chunks:
+        c_start_str = c_start.strftime("%Y-%m-%d")
+        c_end_str = c_end.strftime("%Y-%m-%d")
+        logger.info(
+            "Historical mode: requesting measurements from %s to %s (monthly chunk).",
+            c_start_str,
+            c_end_str,
+        )
+        df_chunk = fetch_openaq_raw(date_from=c_start_str, date_to=c_end_str)
+        if df_chunk is not None and not df_chunk.empty:
+            all_raw_dfs.append(df_chunk)
+            
+    if all_raw_dfs:
+        df_raw = pd.concat(all_raw_dfs, ignore_index=True)
         logger.info(f"Successfully fetched {len(df_raw)} raw rows from OpenAQ API. Post-processing...")
         df_processed = process_openaq_records(df_raw)
         return df_processed
     else:
-        logger.warning("OpenAQ API data unavailable. Reverting to fallback mock data.")
-        return generate_mock_openaq_data()
+        logger.warning("OpenAQ API data unavailable.")
+        return pd.DataFrame()

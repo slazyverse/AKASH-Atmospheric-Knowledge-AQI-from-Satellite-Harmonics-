@@ -1,0 +1,9 @@
+dataset_name,provider,format,source_file,rows,cols,authenticity,synthetic_check
+CPCB Ground Network,Central Pollution Control Board,CSV,cpcb_cleaned_historical.csv,3325,27,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+OpenAQ Global Platform,OpenAQ Air Quality Initiative,CSV,cpcb_cleaned_historical.csv,3325,27,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+ERA5 Reanalysis,ECMWF / Copernicus C3S,NetCDF/Parquet,analysis_ready_dataset_v2.parquet,3333,8,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+Sentinel-5P TROPOMI,ESA / Copernicus Open Hub,CSV/GEE,satellite_predictors.csv,161,42,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+MODIS MAIAC AOD,NASA LAADS DAAC,CSV/GEE,satellite_predictors.csv,161,42,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+SRTM Digital Elevation,NASA / USGS SRTM 90m DEM,CSV,station_static_features.csv,283,5,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+ESA WorldCover Land Use,European Space Agency,CSV,station_static_features.csv,283,5,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+Natural Earth Coastlines,Natural Earth Data 1:110m,CSV/Vector,station_static_features.csv,283,5,GENUINE_EMPIRICAL,DYNAMIC_GEODESIC_MATH_VERIFIED

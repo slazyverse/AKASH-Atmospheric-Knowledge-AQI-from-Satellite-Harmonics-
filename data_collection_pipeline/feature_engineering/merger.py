@@ -232,6 +232,13 @@ def _attach_grid_features(
     temporal_strategy: str,
     is_placeholder: bool = False,
 ) -> pd.DataFrame:
+    if is_placeholder:
+        df = observations.copy()
+        for col in feature_columns:
+            df[col] = pd.NA
+        df[f"{prefix}_match_distance_km"] = float("nan")
+        return df
+
     # Pre-convert grid timestamps once to avoid slow repeated parsing
     grid_copy = grid.copy()
     if not grid_copy.empty and "timestamp" in grid_copy.columns:
@@ -262,8 +269,33 @@ def _attach_grid_features(
 def integrate_datasets(
     temporal_strategy: str,
     missing_strategy: str,
+    satellite_path: Path | None = None,
+    era5_path: Path | None = None,
 ) -> Tuple[pd.DataFrame, Dict[str, str]]:
-    """Load and merge cleaned observations, station metadata, satellite, and ERA5 grids."""
+    """Load and merge cleaned observations, station metadata, satellite, and ERA5 grids.
+
+    Parameters
+    ----------
+    temporal_strategy:
+        Strategy used when aligning grid timestamps to observation timestamps.
+        Must be one of ``SUPPORTED_TEMPORAL_STRATEGIES``.
+    missing_strategy:
+        Strategy applied to missing feature values after merging.
+    satellite_path:
+        Optional path to a specific satellite predictors CSV file.  When
+        provided, the function skips the automatic file-discovery logic in
+        ``load_satellite_grid()`` and reads this path directly.  Intended for
+        use by the Phase-1 historical pipeline which produces its own
+        ``satellite_predictors_hist.csv``.  When ``None`` (the default), the
+        existing discovery behaviour is preserved.
+    era5_path:
+        Optional path to a specific ERA5 meteorology CSV file.  When provided,
+        the function skips the automatic file-discovery logic in
+        ``load_era5_grid()`` and reads this path directly.  Intended for use
+        by the Phase-1 historical pipeline which produces its own
+        ``era5_meteorology_hist.csv``.  When ``None`` (the default), the
+        existing discovery behaviour is preserved.
+    """
     if temporal_strategy not in SUPPORTED_TEMPORAL_STRATEGIES:
         raise ValueError(f"Unsupported temporal alignment strategy: {temporal_strategy}")
 
@@ -276,8 +308,43 @@ def integrate_datasets(
         suffixes=("", "_metadata"),
     )
 
-    satellite_grid, satellite_source = load_satellite_grid(stations, merged["timestamp"])
-    era5_grid, era5_source = load_era5_grid(stations, merged["timestamp"])
+    # Use explicit paths when provided (historical mode), otherwise auto-discover.
+    import os
+    force_skip_satellite = os.environ.get("SKIP_SATELLITE_MERGE") == "1"
+    if force_skip_satellite:
+        all_cols = SATELLITE_FEATURES + SATELLITE_METADATA_FEATURES
+        satellite_grid, satellite_source = _placeholder_grid(stations, merged["timestamp"], all_cols), "placeholder_grid"
+    elif satellite_path is not None:
+        satellite_path = Path(satellite_path)
+        if satellite_path.exists():
+            grid = _normalise_grid_columns(pd.read_csv(satellite_path), SATELLITE_RENAME_MAP)
+            satellite_grid, satellite_source = grid, str(satellite_path)
+        else:
+            logger.warning(
+                "satellite_path '%s' does not exist; falling back to auto-discovery.",
+                satellite_path,
+            )
+            satellite_grid, satellite_source = load_satellite_grid(stations, merged["timestamp"])
+    else:
+        satellite_grid, satellite_source = load_satellite_grid(stations, merged["timestamp"])
+
+    force_skip_era5 = os.environ.get("SKIP_ERA5_MERGE") == "1"
+    if force_skip_era5:
+        era5_grid, era5_source = _placeholder_grid(stations, merged["timestamp"], METEOROLOGY_FEATURES), "placeholder_grid"
+    elif era5_path is not None:
+        era5_path = Path(era5_path)
+        if era5_path.exists():
+            grid = _normalise_grid_columns(pd.read_csv(era5_path), ERA5_RENAME_MAP)
+            era5_grid, era5_source = grid, str(era5_path)
+        else:
+            logger.warning(
+                "era5_path '%s' does not exist; falling back to auto-discovery.",
+                era5_path,
+            )
+            era5_grid, era5_source = load_era5_grid(stations, merged["timestamp"])
+    else:
+        era5_grid, era5_source = load_era5_grid(stations, merged["timestamp"])
+
 
     is_satellite_placeholder = "placeholder" in satellite_source
     is_era5_placeholder = "placeholder" in era5_source

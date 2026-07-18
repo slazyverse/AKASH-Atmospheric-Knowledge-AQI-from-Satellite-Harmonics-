@@ -1,0 +1,177 @@
+{
+  "Collector": {
+    "total_rows": 161,
+    "pollutants": {
+      "SO2 Column": {
+        "column_name": "SO2 Column",
+        "non_null": 113,
+        "nulls": 48,
+        "null_pct": 29.81366459627329
+      },
+      "NO2 Column": {
+        "column_name": "NO2 Column",
+        "non_null": 152,
+        "nulls": 9,
+        "null_pct": 5.590062111801243
+      },
+      "CO Column": {
+        "column_name": "CO Column",
+        "non_null": 151,
+        "nulls": 10,
+        "null_pct": 6.211180124223603
+      },
+      "O3 Column": {
+        "column_name": "O3 Column",
+        "non_null": 129,
+        "nulls": 32,
+        "null_pct": 19.875776397515526
+      },
+      "HCHO": {
+        "column_name": "HCHO",
+        "non_null": 137,
+        "nulls": 24,
+        "null_pct": 14.906832298136646
+      }
+    }
+  },
+  "Merger": {
+    "total_rows": 84,
+    "pollutants": {
+      "SO2 Column": {
+        "column_name": "SO2 Column",
+        "non_null": 49,
+        "nulls": 35,
+        "null_pct": 41.66666666666667
+      },
+      "NO2 Column": {
+        "column_name": "NO2 Column",
+        "non_null": 84,
+        "nulls": 0,
+        "null_pct": 0.0
+      },
+      "CO Column": {
+        "column_name": "CO Column",
+        "non_null": 70,
+        "nulls": 14,
+        "null_pct": 16.666666666666664
+      },
+      "O3 Column": {
+        "column_name": "O3 Column",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      },
+      "HCHO": {
+        "column_name": "HCHO",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      }
+    }
+  },
+  "Dataset Builder": {
+    "total_rows": 84,
+    "pollutants": {
+      "SO2 Column": {
+        "column_name": "SO2 Column",
+        "non_null": 49,
+        "nulls": 35,
+        "null_pct": 41.66666666666667
+      },
+      "NO2 Column": {
+        "column_name": "NO2 Column",
+        "non_null": 84,
+        "nulls": 0,
+        "null_pct": 0.0
+      },
+      "CO Column": {
+        "column_name": "CO Column",
+        "non_null": 70,
+        "nulls": 14,
+        "null_pct": 16.666666666666664
+      },
+      "O3 Column": {
+        "column_name": "O3 Column",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      },
+      "HCHO": {
+        "column_name": "HCHO",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      }
+    }
+  },
+  "analysis_ready_dataset.csv": {
+    "total_rows": 84,
+    "pollutants": {
+      "SO2 Column": {
+        "column_name": "SO2 Column",
+        "non_null": 49,
+        "nulls": 35,
+        "null_pct": 41.66666666666667
+      },
+      "NO2 Column": {
+        "column_name": "NO2 Column",
+        "non_null": 84,
+        "nulls": 0,
+        "null_pct": 0.0
+      },
+      "CO Column": {
+        "column_name": "CO Column",
+        "non_null": 70,
+        "nulls": 14,
+        "null_pct": 16.666666666666664
+      },
+      "O3 Column": {
+        "column_name": "O3 Column",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      },
+      "HCHO": {
+        "column_name": "HCHO",
+        "non_null": 63,
+        "nulls": 21,
+        "null_pct": 25.0
+      }
+    }
+  },
+  "train_dataset.csv": {
+    "total_rows": 58,
+    "pollutants": {
+      "SO2 Column": {
+        "column_name": "SO2 Column",
+        "non_null": 34,
+        "nulls": 24,
+        "null_pct": 41.37931034482759
+      },
+      "NO2 Column": {
+        "column_name": "NO2 Column",
+        "non_null": 58,
+        "nulls": 0,
+        "null_pct": 0.0
+      },
+      "CO Column": {
+        "column_name": "CO Column",
+        "non_null": 48,
+        "nulls": 10,
+        "null_pct": 17.24137931034483
+      },
+      "O3 Column": {
+        "column_name": "O3 Column",
+        "non_null": 43,
+        "nulls": 15,
+        "null_pct": 25.862068965517242
+      },
+      "HCHO": {
+        "column_name": "HCHO",
+        "non_null": 43,
+        "nulls": 15,
+        "null_pct": 25.862068965517242
+      }
+    }
+  }
+}

@@ -1,0 +1,1 @@
+"""Static feature pipeline module."""

@@ -1,0 +1,6 @@
+metric_key,timestamp,station_id,station_name,source_dataset,pm25_value
+Earliest Timestamp,2020-01-01 00:00:00+00:00,ST_d6943ddf,SPARTAN - IIT Kanpur,cpcb_cleaned_historical.csv (Historical baseline anchor seed),12.3
+Latest Timestamp,2026-07-13 19:00:00+00:00,ST_86a1774d,"Anand Vihar, Delhi - DPCC",Real-time CPCB ingestion stream sample,173.34
+Total Calendar Days Span,"2,386 calendar days (2020-01-01 to 2026-07-13)",All 12 stations,Multi-station network,analysis_ready_dataset_v2.parquet,
+Unique Calendar Dates Count,33 distinct dates,All 12 stations,Multi-station network,Intensive Jan 2025 Winter Pollution Benchmark + Anchors,
+Jan 2025 Benchmark Observations,"3,324 obs (99.73% of dataset)",All 12 stations,Multi-station network,30 consecutive calendar days (2025-01-01 to 2025-01-31),

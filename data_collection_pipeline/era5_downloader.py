@@ -426,6 +426,8 @@ def prepare_era5_download(
     variables: Optional[List[str]] = None,
     output_filename: str = _DEFAULT_OUTPUT_FILENAME,
     dry_run: Optional[bool] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
 ) -> bool:
     """Prepare and optionally execute the ERA5 meteorological data download.
 
@@ -443,12 +445,23 @@ def prepare_era5_download(
     Parameters
     ----------
     year, month, day:
-        Date identifiers for the ERA5 request.
+        Date identifiers for the ERA5 request.  Overridden when ``start_date``
+        is provided.
     variables:
         ERA5 variable short names to include.  Defaults to
         ``config.ERA5_DEFAULT_VARIABLES``.
     output_filename:
         Name of the NetCDF output file, saved under ``raw_data/``.
+    start_date:
+        Optional ISO-8601 date string (``YYYY-MM-DD``).  When supplied the
+        ``year``, ``month``, and ``day`` positional arguments are overridden
+        with the values parsed from this string.  Intended for use by the
+        historical ingestion pipeline; ignored when ``None``.
+    end_date:
+        Optional ISO-8601 date string (``YYYY-MM-DD``).  Currently stored in
+        the request spec for documentation purposes.  ERA5 single-level daily
+        requests are best made one day at a time; the historical ERA5 collector
+        iterates month-by-month and sets this to the last day of the month.
     dry_run:
         * ``True``  — write spec + helper script only (no API call).
         * ``False`` — write spec + helper script AND execute CDS API download.
@@ -459,6 +472,25 @@ def prepare_era5_download(
     bool
         True if all requested operations completed without error.
     """
+    # If start_date is supplied by the historical pipeline, override year/month/day.
+    if start_date is not None:
+        try:
+            import datetime as _dt
+            _sd = _dt.date.fromisoformat(start_date)
+            year = str(_sd.year)
+            month = f"{_sd.month:02d}"
+            day = f"{_sd.day:02d}"
+            logger.info(
+                "Historical mode: start_date=%s → year=%s month=%s day=%s.",
+                start_date, year, month, day,
+            )
+        except ValueError as exc:
+            logger.error(
+                "Invalid start_date format '%s': %s.  Expected YYYY-MM-DD.  "
+                "Falling back to positional year/month/day arguments.",
+                start_date, exc,
+            )
+
     # Resolve dry_run default from environment when caller passes None.
     if dry_run is None:
         dry_run = _resolve_dry_run_default()

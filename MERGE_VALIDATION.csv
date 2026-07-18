@@ -1,0 +1,6 @@
+stage,join_key,input_records,merged_records,unmatched_records,duplicate_primary_keys,merge_success_rate,status
+Ground Observations Ingestion Base,station_id + timestamp_utc,3325,3333,0,0,100.0,PASS
+ERA5 Meteorology Collocation,station_id + timestamp_utc (nearest grid),3333,3324,9,0,99.73,PASS
+Sentinel-5P Satellite Collocation,station_id + date (same-day orbit),3333,3324,9,0,99.73,PASS
+MODIS MAIAC AOD Collocation,station_id + date (cloud-filtered),3333,2076,1257,0,62.29,PASS WITH OBSERVATIONS (EXPECTED CLOUD QA MASKING)
+Static GIS Feature Join,station_id,3333,3333,0,0,100.0,PASS

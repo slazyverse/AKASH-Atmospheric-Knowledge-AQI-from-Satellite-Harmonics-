@@ -1,0 +1,57 @@
+column_name,data_type,null_count,missing_percentage,min_value,max_value,description,data_provider
+station,str,8,0.24,N/A,N/A,Feature station in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+last_update,str,8,0.24,N/A,N/A,Feature last_update in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM2.5,float64,0,0.0,0.0,442.0,Feature PM2.5 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM10,float64,3325,99.76,29.15,438.61,Feature PM10 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+NO2,float64,3325,99.76,17.93,71.77,Feature NO2 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+SO2,float64,3325,99.76,5.33,28.77,Feature SO2 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+CO,float64,3325,99.76,0.13,3.56,Feature CO in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+O3,float64,3325,99.76,46.36,115.58,Feature O3 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AQI,float64,8,0.24,0.0,426.0,Feature AQI in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM2.5_outlier,bool,0,0.0,N/A,N/A,Feature PM2.5_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM10_outlier,bool,0,0.0,N/A,N/A,Feature PM10_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+NO2_outlier,bool,0,0.0,N/A,N/A,Feature NO2_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+SO2_outlier,bool,0,0.0,N/A,N/A,Feature SO2_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+CO_outlier,bool,0,0.0,N/A,N/A,Feature CO_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+O3_outlier,bool,0,0.0,N/A,N/A,Feature O3_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AQI_outlier,object,8,0.24,N/A,N/A,Feature AQI_outlier in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM2.5_unit,str,0,0.0,N/A,N/A,Feature PM2.5_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+PM10_unit,str,0,0.0,N/A,N/A,Feature PM10_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+NO2_unit,str,0,0.0,N/A,N/A,Feature NO2_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+SO2_unit,str,0,0.0,N/A,N/A,Feature SO2_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+CO_unit,str,0,0.0,N/A,N/A,Feature CO_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+O3_unit,str,0,0.0,N/A,N/A,Feature O3_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AQI_unit,str,8,0.24,N/A,N/A,Feature AQI_unit in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+timestamp_utc,"datetime64[us, UTC]",0,0.0,N/A,N/A,Feature timestamp_utc in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+station_id,str,0,0.0,N/A,N/A,Feature station_id in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+location,str,3325,99.76,N/A,N/A,Feature location in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+utc_time,str,3325,99.76,N/A,N/A,Feature utc_time in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Temperature,float64,9,0.27,289.50284,305.87347,Feature Temperature in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Relative Humidity,float64,9,0.27,30.0,70.0,Feature Relative Humidity in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Boundary Layer Height,float64,9,0.27,400.0,1200.0,Feature Boundary Layer Height in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Surface Pressure,float64,9,0.27,100651.57,102137.805,Feature Surface Pressure in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+u_wind_component,float64,9,0.27,-0.866994,2.713807,Feature u_wind_component in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+v_wind_component,float64,9,0.27,-2.168722,1.564969,Feature v_wind_component in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Wind Speed,float64,9,0.27,0.032551,2.816873,Feature Wind Speed in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+Wind Direction,float64,9,0.27,0.375275,359.92245,Feature Wind Direction in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+HCHO,float64,9,0.27,7e-05,0.000441,Feature HCHO in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+NO2 Column,float64,9,0.27,7.8e-05,0.000338,Feature NO2 Column in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+CO Column,float64,9,0.27,0.006697,0.044858,Feature CO Column in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AOD_047,float64,1257,37.71,0.202,2.666,Feature AOD_047 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AOD_055,float64,1257,37.71,0.152,2.164,Feature AOD_055 in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+AOD,float64,1257,37.71,0.152,2.164,Feature AOD in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+station_name,str,0,0.0,N/A,N/A,Feature station_name in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+city,str,0,0.0,N/A,N/A,Feature city in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+state,str,0,0.0,N/A,N/A,Feature state in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+agency,str,0,0.0,N/A,N/A,Feature agency in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+latitude,float64,3,0.09,12.917348,28.63576,Feature latitude in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+longitude,float64,3,0.09,72.88261,88.363802,Feature longitude in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+timezone,str,0,0.0,N/A,N/A,Feature timezone in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+country,str,0,0.0,N/A,N/A,Feature country in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+data_source,str,0,0.0,N/A,N/A,Feature data_source in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+coordinate_status,str,0,0.0,N/A,N/A,Feature coordinate_status in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+elevation,float64,0,0.0,8.0,885.0,Feature elevation in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+land_cover_code,float64,0,0.0,10.0,50.0,Feature land_cover_code in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+land_cover_desc,str,0,0.0,N/A,N/A,Feature land_cover_desc in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+distance_to_coast,float64,0,0.0,10.53,932.25,Feature distance_to_coast in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS
+ts_utc,"datetime64[us, UTC]",0,0.0,N/A,N/A,Feature ts_utc in ARD v2,CPCB/OpenAQ/ERA5/Sentinel-5P/MODIS/GIS

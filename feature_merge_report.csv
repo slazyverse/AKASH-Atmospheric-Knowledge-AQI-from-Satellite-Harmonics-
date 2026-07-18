@@ -1,0 +1,4 @@
+dataset,total_records,matched_records,unmatched_records,merge_success_percentage,missing_feature_percentage
+ERA5 Meteorology,3333,3324,9,99.73,0.27
+Sentinel-5P TROPOMI,3333,3324,9,99.73,0.27
+MODIS AOD,3333,2076,1257,62.29,37.71

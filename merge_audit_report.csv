@@ -1,0 +1,9 @@
+Pipeline,Merge_Step,Rows_Before,Rows_After,Merge_Type,Merge_Keys,Duplicates_Introduced,Duplicates_Removed,Unmatched_Rows
+Original (Buggy),Ground Pivoting,26600,6652,pivot_table,"station_id, timestamp",0,0,0
+Original (Buggy),Ground -> ERA5,6652,13296,inner join,"station_id, timestamp",6644,0,4
+Original (Buggy),Ground+ERA5 -> Sentinel-5P,13296,26592,left join,"station_id, date",13296,0,0
+Original (Buggy),Merged -> MODIS,26592,39888,left join,"station_id, date",13296,0,0
+Regenerated (Clean),CPCB + OpenAQ Stack,3333,3333,concat,N/A,0,0,0
+Regenerated (Clean),Quarantine Filter,3333,3333,row_filter,coordinate_status == VALID,0,0,0
+Regenerated (Clean),Base Deduplication,3333,3333,drop_duplicates,"station_id, timestamp",0,0,0
+Regenerated (Clean),Ground -> ERA5,3333,3333,left join (1:1),"station_id, timestamp",0,0,0

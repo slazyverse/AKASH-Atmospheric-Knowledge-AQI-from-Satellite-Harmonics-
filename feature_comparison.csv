@@ -1,0 +1,18 @@
+Feature,Missing_Percentage_Before,Missing_Percentage_After,Completeness_Degraded
+PM2.5,0.0,0.0,NO
+PM10,100.0,99.76,NO
+NO2,100.0,99.76,NO
+SO2,100.0,99.76,NO
+CO,100.0,99.76,NO
+O3,100.0,99.76,NO
+AQI,0.0,0.24,NO
+Temperature,0.0,100.0,YES
+Relative Humidity,0.0,100.0,YES
+Boundary Layer Height,0.0,100.0,YES
+Surface Pressure,0.0,100.0,YES
+Wind Speed,0.0,100.0,YES
+Wind Direction,0.0,100.0,YES
+HCHO,0.0,100.0,YES
+NO2 Column,0.0,100.0,YES
+CO Column,0.0,100.0,YES
+AOD,58.32,100.0,YES

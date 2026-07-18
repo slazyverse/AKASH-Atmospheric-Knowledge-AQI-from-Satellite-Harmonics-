@@ -1,0 +1,9 @@
+Metric,Original_Dataset,Regenerated_Dataset
+Total rows,39888,3333
+Total columns,31,54
+Unique stations,10,14
+Unique timestamps,732,733
+Unique station-timestamp pairs,6648,3333
+Date range start,2024-12-31 19:00:00,2020-01-01 00:00:00+00:00
+Date range end,2025-01-31 18:00:00,2025-01-31 23:30:00+00:00
+Duplicate primary keys,33240,0

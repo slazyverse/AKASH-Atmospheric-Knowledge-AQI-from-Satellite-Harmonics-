@@ -1,0 +1,4 @@
+Source,Total_Rows,Duplicate_Rows,Duplication_Percentage
+ERA5 Meteorology,3734208,1840320,49.28
+Sentinel-5P TROPOMI,620336,310168,50.0
+MODIS MAIAC,32880,16440,50.0

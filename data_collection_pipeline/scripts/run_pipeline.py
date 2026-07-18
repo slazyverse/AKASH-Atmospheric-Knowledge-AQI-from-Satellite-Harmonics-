@@ -99,6 +99,16 @@ def main_cli():
             "and write processed_data/satellite_predictors.csv."
         ),
     )
+    group.add_argument(
+        "--historical",
+        action="store_true",
+        help=(
+            "Run the Phase 1 historical training pipeline: ingest multi-year "
+            "CPCB/OpenAQ/Sentinel-5P/ERA5 data, build the analysis-ready dataset, "
+            "and train a versioned baseline model. "
+            "Control the date range with --hist-start and --hist-end."
+        ),
+    )
     parser.add_argument(
         "--date",
         type=str,
@@ -123,6 +133,53 @@ def main_cli():
         type=int,
         default=7,
         help="Number of days to search backwards if imagery is unavailable (default 7).",
+    )
+
+    # --- Phase 1: Historical pipeline arguments ---
+    parser.add_argument(
+        "--hist-start",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help=(
+            "Start date for the historical training pipeline (used with --historical). "
+            "Defaults to HIST_START_DATE env var (2020-01-01)."
+        ),
+    )
+    parser.add_argument(
+        "--hist-end",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help=(
+            "End date for the historical training pipeline (used with --historical). "
+            "Defaults to HIST_END_DATE env var (2024-12-31)."
+        ),
+    )
+    parser.add_argument(
+        "--skip-satellite",
+        action="store_true",
+        help="Skip GEE satellite collection when running --historical (uses placeholder data).",
+    )
+    parser.add_argument(
+        "--skip-era5",
+        action="store_true",
+        help="Skip ERA5 collection when running --historical (uses placeholder data).",
+    )
+    parser.add_argument(
+        "--csv-folder",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a directory containing CPCB annual/monthly CSV exports "
+            "(used with --historical). Defaults to raw_data/historical/cpcb/."
+        ),
+    )
+    parser.add_argument(
+        "--no-openaq",
+        action="store_true",
+        help="Disable OpenAQ API querying when running --historical.",
     )
     
     args = parser.parse_args()
@@ -485,6 +542,33 @@ def main_cli():
         logger.info("ML Pipeline Integration completed successfully.")
         sys.exit(0)
             
+    elif args.historical:
+        logger.info("Running Phase 1 Historical Training Pipeline...")
+        try:
+            from data_collection_pipeline.historical_ingestor.pipeline import (
+                run_historical_pipeline,
+            )
+        except ImportError as imp_err:
+            logger.error(
+                "historical_ingestor package not found: %s", imp_err
+            )
+            sys.exit(1)
+
+        success = run_historical_pipeline(
+            start_date=args.hist_start,
+            end_date=args.hist_end,
+            skip_satellite=args.skip_satellite,
+            skip_era5=args.skip_era5,
+            csv_folder=args.csv_folder,
+            use_openaq=not args.no_openaq,
+        )
+        if success:
+            logger.info("Historical pipeline completed successfully.")
+            sys.exit(0)
+        else:
+            logger.error("Historical pipeline encountered errors.")
+            sys.exit(1)
+
     else:
         # Run entire pipeline
         success = main.run_collection_pipeline(dry_run=dry_run)

@@ -359,6 +359,9 @@ def run_training_pipeline(
     X_train, y_train, feature_cols = prepare_training_features(train_df, target_col)
     X_test, y_test, _ = prepare_training_features(test_df, target_col)
     
+    # Align X_test columns to match X_train columns exactly
+    X_test = X_test.reindex(columns=X_train.columns, fill_value=np.nan)
+    
     # 6. Fit Pipeline
     model_pipeline = train_baseline_model(X_train, y_train, feature_cols)
     

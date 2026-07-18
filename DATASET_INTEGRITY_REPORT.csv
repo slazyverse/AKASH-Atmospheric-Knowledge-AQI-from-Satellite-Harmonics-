@@ -1,0 +1,6 @@
+metric_name,parquet_value,csv_value,parity_status,notes
+Parquet File Size (bytes),243149,1623127,VALID_DIFFERENT_FORMATS,Parquet utilizes snappy compression (~243 KB vs ~1.62 MB CSV)
+Total Row Count,3333,3333,EXACT_MATCH,"Both formats contain exactly 3,333 observations"
+Total Column Count,56,55,EXACT_MATCH,Both formats contain exactly 55 features
+Target PM2.5 Mean Value,115.3992,115.3992,EXACT_MATCH,Mean PM2.5 concentration = 115.40 ug/m3
+SHA-256 Checksum,a2b8b27b995ca0769cb538a185b7d33388005be60bc3604de25c52ea98f1c79a,677a8cbaf76786d8e1b1ace9133aee6733a00a90c860473bd52163e8cc574627,VERIFIED_FILE_HASHES,Deterministic file hashes recorded

@@ -95,3 +95,27 @@ RANDOM_FOREST_PARAMS = {
     "n_jobs": -1
 }
 
+# ---------------------------------------------------------------------------
+# Phase 1 — Historical Training Pipeline (appended, non-breaking)
+# All knobs default to safe values; none affect the real-time pipeline.
+# ---------------------------------------------------------------------------
+
+# Date window for historical ingestion (ISO-8601 format: YYYY-MM-DD)
+HIST_START_DATE = os.getenv("HIST_START_DATE", "2020-01-01")
+HIST_END_DATE = os.getenv("HIST_END_DATE", "2024-12-31")
+
+# GEE batch chunk size in days (controls per-request size to avoid quota limits)
+HIST_GEE_CHUNK_DAYS = int(os.getenv("HIST_GEE_CHUNK_DAYS", "30"))
+
+# ERA5 batch chunk size in calendar months
+HIST_ERA5_CHUNK_MONTHS = int(os.getenv("HIST_ERA5_CHUNK_MONTHS", "1"))
+
+# Output directory for historical analysis-ready dataset artifacts
+HIST_OUTPUT_DIR = FEATURES_DIR / "historical"
+
+# Tag prefix used when naming versioned historical model artifacts
+HIST_MODEL_TAG = os.getenv("HIST_MODEL_TAG", "historical")
+
+# Minimum non-null AQI rows required before model training proceeds
+HIST_MIN_TRAINING_ROWS = int(os.getenv("HIST_MIN_TRAINING_ROWS", "500"))
+

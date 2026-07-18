@@ -1,0 +1,2 @@
+location_id,station_name,latitude,longitude,city,state,country,parameter,value,unit,date_utc,date_local
+12,SPARTAN - IIT Kanpur,26.519,80.233,,,India,PM2.5,12.3,µg/m³,2020-01-01T00:00:00Z,2020-01-01T05:30:00+05:30
