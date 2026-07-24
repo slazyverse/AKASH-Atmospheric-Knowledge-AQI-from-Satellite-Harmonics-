@@ -1,0 +1,5 @@
+,feature_count,avg_comp,min_comp,max_comp
+Ground Features,7.0,28.71,0.24,100.0
+Meteorological Features,6.0,99.73,99.73,99.73
+Satellite Features,6.0,81.01,62.29,99.73
+Static Features,3.0,100.0,100.0,100.0

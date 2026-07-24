@@ -89,3 +89,31 @@ era5_pipeline_validation_report.md
 # Upstream validation outputs
 upstream_data_generation_report.md
 upstream_operational_validation_report.md
+
+# Environment files
+.env
+*.env
+data_collection_pipeline/.env
+
+# Local debug scripts
+check_*.py
+debug_*.py
+inspect_*.py
+investigate_*.py
+
+# Scratch work
+scratch/
+data_collection_pipeline/scratch/
+
+# Local logs
+historical_data/logs/
+
+# Temporary reports
+changed_files.txt
+files_in_commit.txt
+staged_changes.txt
+
+# Local utilities
+run_prep.ps1
+run_validation_download.py
+test_utils.py

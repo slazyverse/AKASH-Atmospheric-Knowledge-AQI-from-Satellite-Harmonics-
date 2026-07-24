@@ -1,0 +1,22 @@
+{
+    "Dataset Overview": {
+        "Total rows": 3333,
+        "Total columns": 55,
+        "Dataset size (MB)": 0.23,
+        "Number of stations": 12,
+        "Earliest timestamp": "2020-01-01 00:00:00+00:00",
+        "Latest timestamp": "2026-07-13 19:00:00+00:00",
+        "Total study duration (days)": 2385,
+        "Number of unique days": 33,
+        "Number of unique months": 3,
+        "Number of unique years": 3
+    },
+    "Pipeline Summary": {
+        "Dataset Completeness": "PASS",
+        "Ground Coverage": "WARNING",
+        "Satellite Coverage": "PASS",
+        "Temporal Consistency": "WARNING",
+        "Duplicate Detection": "PASS",
+        "Coordinate Validation": "PASS"
+    }
+}

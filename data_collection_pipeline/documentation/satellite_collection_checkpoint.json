@@ -1,0 +1,62 @@
+{
+  "task": "nationwide_satellite_collection",
+  "version": "2.0",
+  "created_at": "2026-07-12T19:41:00+05:30",
+  "completed_at": "2026-07-12T19:57:00+05:30",
+  "milestones": {
+    "code_rewrite": "COMPLETE",
+    "qa_fix_offl_l3": "COMPLETE",
+    "smoke_test": "PASSED",
+    "full_collection": "COMPLETE",
+    "integrate_only": "COMPLETE",
+    "prepare_dataset": "COMPLETE",
+    "validation_report": "COMPLETE",
+    "checkpoint_update": "COMPLETE"
+  },
+  "current_stage": "DONE",
+  "collection_params": {
+    "date": "2026-06-30",
+    "temporal_window_days": 1,
+    "date_range": "2026-06-29 to 2026-07-02",
+    "batch_size": 100,
+    "total_stations": 161,
+    "total_states": 31,
+    "gee_batches": 2,
+    "total_gee_calls": 12
+  },
+  "smoke_test": {
+    "stations_tested": 20,
+    "states_spanned": 12,
+    "result": "PASSED",
+    "valid_no2_values": "7/7"
+  },
+  "stations_processed": 135,
+  "stations_remaining": 0,
+  "last_completed_batch": 2,
+  "generated_outputs": [
+    "data_collection_pipeline/processed_data/satellite_predictors.csv",
+    "analysis_ready_dataset.csv",
+    "data_collection_pipeline/documentation/satellite_collection_validation_report.md",
+    "data_collection_pipeline/documentation/satellite_collection_checkpoint.json"
+  ],
+  "satellite_predictors_stats": {
+    "rows": 135,
+    "columns": 10,
+    "missing_pct": {
+      "AOD": 84.4,
+      "HCHO": 25.2,
+      "NO2 Column": 52.6,
+      "SO2 Column": 44.4,
+      "CO Column": 2.2,
+      "O3 Column": 29.6
+    }
+  },
+  "analysis_ready_dataset_stats": {
+    "rows": 9,
+    "columns": 34,
+    "aqi_non_null": 9,
+    "collocation_rejections": 3
+  },
+  "execution_time_seconds": 55,
+  "next_action": "NONE - task complete"
+}

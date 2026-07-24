@@ -11,6 +11,7 @@ from data_collection_pipeline.feature_engineering.preprocessing import (
     preprocess_target,
     build_preprocessing_pipeline
 )
+from data_collection_pipeline.pbl_feature_engine import PBL_FEATURES, compute_pbl_features
 
 __all__ = [
     "run_integration_pipeline",
@@ -21,4 +22,6 @@ __all__ = [
     "FeatureSelector",
     "preprocess_target",
     "build_preprocessing_pipeline",
+    "PBL_FEATURES",
+    "compute_pbl_features",
 ]

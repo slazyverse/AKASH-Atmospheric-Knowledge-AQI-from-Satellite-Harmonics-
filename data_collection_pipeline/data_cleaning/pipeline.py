@@ -1,4 +1,4 @@
-﻿"""Cleaning pipeline orchestration for collected air-quality datasets."""
+"""Cleaning pipeline orchestration for collected air-quality datasets."""
 
 from __future__ import annotations
 
@@ -79,8 +79,23 @@ def _clean_if_available(
         return metric
 
 
-def run_cleaning_pipeline() -> bool:
-    """Run dataset cleaning, station validation, and quality reporting."""
+def run_cleaning_pipeline(source_file: Optional[str] = None) -> bool:
+    """Run dataset cleaning, station validation, and quality reporting.
+
+    Parameters
+    ----------
+    source_file:
+        Optional path to a specific raw CPCB CSV file to clean.  When
+        supplied the function skips the ``find_latest_raw_file`` glob and
+        reads this path directly.  Output is written to
+        ``processed_data/cpcb_cleaned_historical.csv`` instead of
+        ``cpcb_cleaned_latest.csv``, so both can coexist in the same
+        processed_data/ directory without conflict.
+
+        When ``None`` (the default) the function behaves exactly as before
+        Phase 1 — finding the most-recent raw file via glob and writing
+        ``cpcb_cleaned_latest.csv``.
+    """
     setup.init_workspace()
     utils.setup_logging()
 
@@ -88,14 +103,31 @@ def run_cleaning_pipeline() -> bool:
     logger.info("Starting Data Cleaning & Validation Pipeline run")
     logger.info("=========================================")
 
-    cpcb_raw = find_latest_raw_file(config.RAW_DATA_DIR, "cpcb_raw_*.csv")
+    if source_file is not None:
+        # Historical mode: use the supplied file directly.
+        cpcb_raw = Path(source_file)
+        if not cpcb_raw.exists():
+            logger.error(
+                "source_file '%s' does not exist.  Aborting cleaning pipeline.",
+                source_file,
+            )
+            return False
+        cpcb_output = config.PROCESSED_DATA_DIR / "cpcb_cleaned_historical.csv"
+        logger.info(
+            "Historical mode: cleaning '%s' → '%s'.", cpcb_raw.name, cpcb_output.name
+        )
+    else:
+        # Real-time mode (default): glob for the most-recent raw file.
+        cpcb_raw = find_latest_raw_file(config.RAW_DATA_DIR, "cpcb_raw_*.csv")
+        cpcb_output = config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv"
+
     openaq_raw = find_latest_raw_file(config.RAW_DATA_DIR, "openaq_raw_*.csv")
 
     metrics: List[CleaningMetrics] = [
         _clean_if_available(
             "cpcb",
             cpcb_raw,
-            config.PROCESSED_DATA_DIR / "cpcb_cleaned_latest.csv",
+            cpcb_output,
         ),
         _clean_if_available(
             "openaq",

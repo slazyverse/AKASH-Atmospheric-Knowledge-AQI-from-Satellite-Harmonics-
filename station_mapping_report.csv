@@ -1,0 +1,13 @@
+canonical_station_id,cpcb_station_id,openaq_station_id,legacy_station_id,hashed_station_id,station_name
+ST_86a1774d,ST_86a1774d,ST_e926ced2,STN_080,ST_86a1774d,"Anand Vihar, Delhi - DPCC"
+ST_986f38db,ST_986f38db,N/A,STN_065,ST_986f38db,"Arumbakkam, Chennai - TNPCB"
+ST_db6bb351,ST_db6bb351,N/A,STN_152,ST_db6bb351,"Ballygunge, Kolkata - WBPCB"
+ST_c4e4d1a0,ST_c4e4d1a0,ST_b2a7f0ba,STN_185,ST_c4e4d1a0,"Bandra Kurla Complex, Mumbai - MPCB"
+ST_e954f86b,ST_e954f86b,N/A,STN_113,ST_e954f86b,"Central University, Hyderabad - TSPCB"
+ST_d6943ddf,ST_d6943ddf,N/A,STN_283,ST_d6943ddf,SPARTAN - IIT Kanpur
+ST_e3823f2d,ST_749741bc,ST_e3823f2d,STN_039,ST_e3823f2d,"Silk Board, Bengaluru - KSPCB"
+ST_0073c676,ST_5709c263,ST_0073c676,STN_152,ST_0073c676,"Victoria, Kolkata - WBPCB"
+ST_6738592a,ST_5aff2f5b,ST_6738592a,STN_065,ST_6738592a,"Velachery, Chennai - TNPCB"
+ST_44c28da7,ST_5f0de498,ST_44c28da7,STN_115,ST_44c28da7,"Sanathnagar, Hyderabad - TSPCB"
+ST_3c956e87,ST_953a0ff6,ST_3c956e87,STN_163,ST_3c956e87,"Lalbagh, Lucknow - UPPCB"
+ST_d202e018,ST_c6eb5956,ST_d202e018,STN_212,ST_d202e018,"Rajbansi Nagar, Patna - BSPCB"

@@ -1,0 +1,9 @@
+source_name,provider_agency,acquisition_method,source_file,format,sample_station,authenticity_status,placeholder_check
+CPCB Ground Network,"Central Pollution Control Board, India",CPCB Realtime API & OpenAQ Historical Archive,cpcb_cleaned_historical.csv,CSV,"Anand Vihar, Delhi - DPCC",GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+OpenAQ Global Platform,OpenAQ Environmental Data Initiative,S3 OpenAQ Hourly Measurements Bucket,cpcb_cleaned_historical.csv,CSV,"Anand Vihar, Delhi - DPCC",GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+ERA5 Atmospheric Reanalysis,ECMWF / Copernicus Climate Change Service,CDS API netCDF4 Extraction,analysis_ready_dataset_v2.parquet,Parquet (Embedded),Grid Nearest Neighbor,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+Sentinel-5P TROPOMI Satellite,ESA / Copernicus Open Access Hub,Google Earth Engine API Extraction,satellite_predictors.csv,CSV,AP_01,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+MODIS MAIAC Aerosol Optical Depth,NASA LAADS DAAC / Earthdata,Google Earth Engine MCD19A2 V006,satellite_predictors.csv,CSV,AP_01,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+SRTM Digital Elevation Model,NASA / USGS SRTM 90m DEM,GEE / Local Raster Collocation,station_static_features.csv,CSV,STN_001,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+ESA WorldCover Land Use Land Cover,European Space Agency (ESA),GEE ESA WorldCover 10m v100,station_static_features.csv,CSV,STN_001,GENUINE_EMPIRICAL,NO_SYNTHETIC_DATA_FOUND
+Natural Earth Coastline Vectors,Natural Earth Data (1:110m),Shapely / Geopandas Geodesic Vector Math,station_static_features.csv,CSV,STN_001,GENUINE_EMPIRICAL,DYNAMIC_GEODESIC_MATH_VERIFIED

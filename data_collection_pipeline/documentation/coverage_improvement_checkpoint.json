@@ -1,0 +1,20 @@
+{
+  "current_objective": "Validation and reporting",
+  "status": "COMPLETED",
+  "objective_1_findings": {
+    "reason_for_12_rows": "DATA_GOV_API_KEY was empty, triggering fallback to mock generator. The mock generator generated exactly 12 records (one for each key station) on a single hardcoded timestamp. Furthermore, any negative values in cleaner caused the entire row to be dropped.",
+    "cpcb_expansion_fix": "Modified cpcb_collector.py to support a configurable window_days parameter (passed from config and CLI). If mock data is used, it generates daily observations for each station over the last N days. Refactored remove_negative_pollutants in cleaners.py to nullify negative values rather than dropping entire rows.",
+    "run_pipeline_changes": "Added --cpcb-window-days CLI parameter to run_pipeline.py and mapped it to the CPCB collection functions. Re-cleaned cpcb_raw_manual.csv, successfully retaining 84 rows."
+  },
+  "objective_2_findings": {
+    "temporal_nearest_valid_pixel": "Refactored sentinel5p_collector.py to use server-side mapping and sorting on absolute temporal difference. It selects the nearest valid pixel per coordinate within the configurable search window using ee.Reducer.first().",
+    "metadata_extraction": "Extracted observation date, temporal offset in days, and QA status values for each satellite feature.",
+    "dataset_propagation": "Updated merger.py, feature_builder.py, and dataset_validator.py to accept, merge, and validate these new metadata columns, propagating them directly to analysis_ready_dataset.csv."
+  },
+  "objective_3_findings": {
+    "gee_data_availability_analysis": "Discovered that the offline collections of Sentinel-5P L3 and MODIS AOD have physical limits: (a) GEE ingestion lag limits recent data availability (latest image is July 2nd for Sentinel-5P); (b) monsoon cloud cover (June-September) results in 100% of pixels failing the QA filters (cloud fraction < 0.5) over major cities like Delhi during this time range.",
+    "dataset_regeneration": "Regenerated processed_data/satellite_predictors.csv and analysis_ready_dataset.csv (now containing 84 rows and 52 columns, including 18 new metadata columns)."
+  },
+  "next_objective": "NONE - task complete",
+  "last_updated": "2026-07-13T09:41:00Z"
+}

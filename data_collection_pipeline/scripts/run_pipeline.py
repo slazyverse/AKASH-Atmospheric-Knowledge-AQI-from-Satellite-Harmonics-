@@ -99,12 +99,87 @@ def main_cli():
             "and write processed_data/satellite_predictors.csv."
         ),
     )
+    group.add_argument(
+        "--historical",
+        action="store_true",
+        help=(
+            "Run the Phase 1 historical training pipeline: ingest multi-year "
+            "CPCB/OpenAQ/Sentinel-5P/ERA5 data, build the analysis-ready dataset, "
+            "and train a versioned baseline model. "
+            "Control the date range with --hist-start and --hist-end."
+        ),
+    )
     parser.add_argument(
         "--date",
         type=str,
         default=None,
         metavar="YYYY-MM-DD",
         help="Target date for satellite collection (used with --collect-satellite).",
+    )
+    parser.add_argument(
+        "--cpcb-window-days",
+        type=int,
+        default=1,
+        help="Number of days of CPCB air quality history to collect (mock mode only).",
+    )
+    parser.add_argument(
+        "--satellite-window-days",
+        type=int,
+        default=1,
+        help="Temporal averaging/search window in days around target date (default 1).",
+    )
+    parser.add_argument(
+        "--satellite-lookback-days",
+        type=int,
+        default=7,
+        help="Number of days to search backwards if imagery is unavailable (default 7).",
+    )
+
+    # --- Phase 1: Historical pipeline arguments ---
+    parser.add_argument(
+        "--hist-start",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help=(
+            "Start date for the historical training pipeline (used with --historical). "
+            "Defaults to HIST_START_DATE env var (2020-01-01)."
+        ),
+    )
+    parser.add_argument(
+        "--hist-end",
+        type=str,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help=(
+            "End date for the historical training pipeline (used with --historical). "
+            "Defaults to HIST_END_DATE env var (2024-12-31)."
+        ),
+    )
+    parser.add_argument(
+        "--skip-satellite",
+        action="store_true",
+        help="Skip GEE satellite collection when running --historical (uses placeholder data).",
+    )
+    parser.add_argument(
+        "--skip-era5",
+        action="store_true",
+        help="Skip ERA5 collection when running --historical (uses placeholder data).",
+    )
+    parser.add_argument(
+        "--csv-folder",
+        type=str,
+        default=None,
+        metavar="PATH",
+        help=(
+            "Path to a directory containing CPCB annual/monthly CSV exports "
+            "(used with --historical). Defaults to raw_data/historical/cpcb/."
+        ),
+    )
+    parser.add_argument(
+        "--no-openaq",
+        action="store_true",
+        help="Disable OpenAQ API querying when running --historical.",
     )
     
     args = parser.parse_args()
@@ -122,7 +197,7 @@ def main_cli():
     # Execute specific module or run full pipeline
     if args.cpcb_only:
         logger.info("Running CPCB Air Quality data collector only...")
-        df_cpcb = cpcb_collector.collect_cpcb_data()
+        df_cpcb = cpcb_collector.collect_cpcb_data(window_days=args.cpcb_window_days)
         cpcb_file = config.RAW_DATA_DIR / "cpcb_raw_manual.csv"
         df_cpcb.to_csv(cpcb_file, index=False)
         logger.info(f"CPCB execution complete. Output saved to {cpcb_file}")
@@ -156,7 +231,6 @@ def main_cli():
         processing_success = False
         if download_success and not resolved_dry_run and credential_info["overall"]:
             logger.info("Download successful. Automatically initiating NetCDF → CSV processing...")
-            from data_collection_pipeline import era5_processor
             processing_success = era5_processor.process_era5_netcdf()
             
         # 4. Validate and write report
@@ -223,7 +297,9 @@ def main_cli():
             sys.exit(0)
 
         success = sentinel5p_collector.collect_satellite_data(
-            date_str=getattr(args, "date", None)
+            date_str=getattr(args, "date", None),
+            temporal_window_days=args.satellite_window_days,
+            lookback_days=args.satellite_lookback_days,
         )
         if success:
             logger.info(
@@ -430,14 +506,15 @@ def main_cli():
             df_train = baseline_model.load_training_data(train_file)
             target_col = baseline_model.select_target_column(df_train)
             X_train, y_train, feature_cols = baseline_model.prepare_training_features(df_train, target_col)
-            model = baseline_model.train_baseline_model(X_train, y_train)
+            model = baseline_model.train_baseline_model(X_train, y_train, feature_cols)
+            importances = baseline_model.get_feature_importances(model)
             training_summary = {
                 "dataset_size": len(X_train),
                 "feature_count": len(feature_cols),
                 "target_column": target_col,
                 "status": "completed"
             }
-            baseline_model.save_trained_model(model, training_summary, config.MODEL_OUTPUT_PATH)
+            baseline_model.save_trained_model(model, training_summary, {}, importances, config.MODEL_OUTPUT_PATH)
         except Exception as e:
             logger.error(f"Model training failed: {e}")
             sys.exit(1)
@@ -465,6 +542,33 @@ def main_cli():
         logger.info("ML Pipeline Integration completed successfully.")
         sys.exit(0)
             
+    elif args.historical:
+        logger.info("Running Phase 1 Historical Training Pipeline...")
+        try:
+            from data_collection_pipeline.historical_ingestor.pipeline import (
+                run_historical_pipeline,
+            )
+        except ImportError as imp_err:
+            logger.error(
+                "historical_ingestor package not found: %s", imp_err
+            )
+            sys.exit(1)
+
+        success = run_historical_pipeline(
+            start_date=args.hist_start,
+            end_date=args.hist_end,
+            skip_satellite=args.skip_satellite,
+            skip_era5=args.skip_era5,
+            csv_folder=args.csv_folder,
+            use_openaq=not args.no_openaq,
+        )
+        if success:
+            logger.info("Historical pipeline completed successfully.")
+            sys.exit(0)
+        else:
+            logger.error("Historical pipeline encountered errors.")
+            sys.exit(1)
+
     else:
         # Run entire pipeline
         success = main.run_collection_pipeline(dry_run=dry_run)

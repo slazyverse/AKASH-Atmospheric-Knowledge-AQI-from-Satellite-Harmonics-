@@ -81,6 +81,9 @@ FEATURE_SCHEMA: Dict[str, FeatureMetadata] = {
     "Wind Speed": FeatureMetadata("Wind Speed", "meteorology", "numeric", "m/s", "ERA5", (0.0, 100.0), "Wind speed derived from U/V components"),
     "Wind Direction": FeatureMetadata("Wind Direction", "meteorology", "numeric", "degrees", "ERA5", (0.0, 360.0), "Wind direction derived from U/V components"),
     "Surface Pressure": FeatureMetadata("Surface Pressure", "meteorology", "numeric", "Pa", "ERA5", (50000.0, 110000.0), "Surface atmospheric pressure"),
+    "Ventilation Index": FeatureMetadata("Ventilation Index", "meteorology", "numeric", "m2/s", "ERA5", (0.0, 500000.0), "Atmospheric dispersion capability (PBLH * Wind Speed)"),
+    "Inversion Lapse Rate": FeatureMetadata("Inversion Lapse Rate", "meteorology", "numeric", "K/m", "ERA5", (0.0, 50.0), "Boundary layer thermal inversion rate"),
+    "Hygroscopic Growth Factor": FeatureMetadata("Hygroscopic Growth Factor", "meteorology", "numeric", "ratio", "ERA5", (1.0, 10.0), "Aerosol water uptake growth factor f(RH)"),
 
     # 4. Geographic Features
     "Elevation": FeatureMetadata("Elevation", "geography", "numeric", "m", "DEM", (-100.0, 9000.0), "Altitude above sea level"),

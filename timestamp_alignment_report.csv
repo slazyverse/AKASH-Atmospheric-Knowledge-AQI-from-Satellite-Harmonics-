@@ -1,0 +1,6 @@
+dataset,timezone,timestamp_precision,sampling_interval,datetime_format,alignment_strategy
+CPCB,Asia/Kolkata,Hour/Minute,Hourly,%Y-%m-%dT%H:%M:%S,Floor to nearest HH:00 UTC (aligned with ERA5 hour)
+OpenAQ,UTC,Hour/Minute/Second,Hourly,%Y-%m-%dT%H:%M:%S%z (timezone-aware),Pass-through (already HH:00 UTC)
+ERA5,UTC,Hour,Hourly,%Y-%m-%d %H:%M:%S,Merge Target (exact hour match)
+Sentinel-5P,UTC,Daily (Overpass),Daily,%Y-%m-%d,Daily overpass date match
+MODIS,UTC,Daily (Overpass),Daily,%Y-%m-%d,Daily overpass date match

@@ -1,0 +1,57 @@
+feature_name,feature_group,total_records,present_records,missing_records,completeness_pct_after,missing_pct_after,missing_pct_before,improvement_pct
+station,CPCB Ground Air Quality,3333,3325,8,99.76,0.24,0.24,0.0
+last_update,CPCB Ground Air Quality,3333,3325,8,99.76,0.24,0.24,0.0
+PM2.5,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+PM10,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+NO2,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+SO2,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+CO,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+O3,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+AQI,CPCB Ground Air Quality,3333,3325,8,99.76,0.24,0.24,0.0
+PM2.5_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+PM10_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+NO2_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+SO2_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+CO_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+O3_outlier,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+AQI_outlier,CPCB Ground Air Quality,3333,3325,8,99.76,0.24,0.24,0.0
+PM2.5_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+PM10_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+NO2_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+SO2_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+CO_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+O3_unit,CPCB Ground Air Quality,3333,3333,0,100.0,0.0,0.0,0.0
+AQI_unit,CPCB Ground Air Quality,3333,3325,8,99.76,0.24,0.24,0.0
+timestamp_utc,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+station_id,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+location,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+utc_time,CPCB Ground Air Quality,3333,8,3325,0.24,99.76,99.76,0.0
+Temperature,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+Relative Humidity,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+Boundary Layer Height,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+Surface Pressure,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+u_wind_component,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+v_wind_component,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+Wind Speed,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+Wind Direction,ERA5 Meteorology,3333,3324,9,99.73,0.27,15.42,15.15
+HCHO,Sentinel-5P TROPOMI,3333,3324,9,99.73,0.27,42.1,41.83
+NO2 Column,Sentinel-5P TROPOMI,3333,3324,9,99.73,0.27,42.1,41.83
+CO Column,Sentinel-5P TROPOMI,3333,3324,9,99.73,0.27,42.1,41.83
+AOD_047,MODIS MAIAC,3333,2076,1257,62.29,37.71,37.71,0.0
+AOD_055,MODIS MAIAC,3333,2076,1257,62.29,37.71,37.71,0.0
+AOD,MODIS MAIAC,3333,2076,1257,62.29,37.71,37.71,0.0
+station_name,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+city,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+state,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+agency,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+latitude,Station Spatial Metadata,3333,3330,3,99.91,0.09,0.09,0.0
+longitude,Station Spatial Metadata,3333,3330,3,99.91,0.09,0.09,0.0
+timezone,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+country,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+data_source,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+coordinate_status,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0
+elevation,GIS Static Features,3333,3333,0,100.0,0.0,0.0,0.0
+land_cover_code,GIS Static Features,3333,3333,0,100.0,0.0,0.0,0.0
+land_cover_desc,GIS Static Features,3333,3333,0,100.0,0.0,0.0,0.0
+distance_to_coast,GIS Static Features,3333,3333,0,100.0,0.0,0.0,0.0
+ts_utc,Station Spatial Metadata,3333,3333,0,100.0,0.0,0.0,0.0

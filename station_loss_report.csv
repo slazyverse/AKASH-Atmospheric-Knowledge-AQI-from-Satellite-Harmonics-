@@ -1,0 +1,20 @@
+station_id,station_name,observations_before,observations_after,difference,expected_observations,duplicate_observations_removed,observations_truly_lost,is_quarantined,loss_percentage
+ST_6738592a,,0,1,1,1,0,0,NO,0.0
+ST_86a1774d,"Anand Vihar, Delhi - DPCC",5184,648,-4536,648,4536,0,NO,0.0
+ST_3085b050,"Nathu Colony, Ballabgarh - HSPCB",2720,0,-2720,0,2720,0,YES,100.0
+ST_d202e018,,0,1,1,1,0,0,NO,0.0
+ST_c4e4d1a0,"Bandra Kurla Complex, Mumbai - MPCB",5664,708,-4956,708,4956,0,NO,0.0
+ST_986f38db,"Arumbakkam, Chennai - TNPCB",5848,731,-5117,731,5117,0,NO,0.0
+ST_1bfe0cca,"New Colony, Bundi - RSPCB",2228,0,-2228,0,2228,0,YES,100.0
+ST_7ecdefed,"Civil Lines, Bareilly - UPPCB",2832,0,-2832,0,2832,0,YES,100.0
+ST_db6bb351,"Ballygunge, Kolkata - WBPCB",5440,680,-4760,680,4760,0,NO,0.0
+ST_e3823f2d,,0,1,1,1,0,0,NO,0.0
+ST_d6943ddf,SPARTAN - IIT Kanpur,0,1,1,1,0,0,NO,0.0
+ST_b2a7f0ba,,0,1,1,1,0,0,NO,0.0
+ST_0073c676,,0,1,1,1,0,0,NO,0.0
+ST_3c956e87,,0,1,1,1,0,0,NO,0.0
+ST_16d72351,"GIDC, Ankleshwar - GPCB",2924,0,-2924,0,2924,0,YES,100.0
+ST_e954f86b,"Central University, Hyderabad - TSPCB",4456,557,-3899,557,3899,0,NO,0.0
+ST_e926ced2,,0,1,1,1,0,0,NO,0.0
+ST_44c28da7,,0,1,1,1,0,0,NO,0.0
+ST_1ed5dc0f,"Shivneri Colony, Amravati - MPCB",2592,0,-2592,0,2592,0,YES,100.0

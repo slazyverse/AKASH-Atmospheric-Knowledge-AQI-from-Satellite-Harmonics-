@@ -1,0 +1,5 @@
+Merge,Keys,Initial_Rows,Duplicates_Detected,Rows_After_Deduplication,Rows_Lost_In_Merge
+ERA5,"['station_id', 'timestamp_utc']",306720,0,306720,0
+Sentinel-5P,"['legacy_station_id', 'date']",620336,310168,310168,0
+MODIS,"['legacy_station_id', 'date']",32880,16440,16440,0
+Metadata,['station_id'],526,13,513,0

@@ -1,9 +1,13 @@
 import os
 from pathlib import Path
 
+from pathlib import Path
 from dotenv import load_dotenv
 
-load_dotenv()
+BASE_DIR = Path(__file__).resolve().parent
+ENV_FILE = BASE_DIR / ".env"
+
+load_dotenv(dotenv_path=ENV_FILE, override=False)
 
 # Base directory of the data collection pipeline
 BASE_DIR = Path(__file__).resolve().parent
@@ -19,6 +23,16 @@ FEATURES_DIR = BASE_DIR / "features"
 # API Keys & Credentials
 DATA_GOV_API_KEY = os.getenv("DATA_GOV_API_KEY", "")
 OPENAQ_API_KEY = os.getenv("OPENAQ_API_KEY", "")
+
+# Google Earth Engine — configuration (single source of truth via earth_engine.config)
+# Importing here makes `config.GEE_PROJECT_ID` and `config.EE_SA_KEY_PATH` available across the whole pipeline.
+# An EnvironmentError is raised at import time if GEE_PROJECT_ID is not set.
+try:
+    from data_collection_pipeline.earth_engine.config import GEE_PROJECT_ID, EE_SA_KEY_PATH
+except EnvironmentError:
+    # Re-raise so callers see the actionable message from earth_engine.config.
+    raise
+
 
 # API Endpoints
 # CPCB Real-time Air Quality resource ID on data.gov.in
@@ -42,6 +56,7 @@ ERA5_DEFAULT_VARIABLES = [
 # Day 3 feature integration defaults
 TEMPORAL_ALIGNMENT = os.getenv("TEMPORAL_ALIGNMENT", "nearest")
 MISSING_VALUE_STRATEGY = os.getenv("MISSING_VALUE_STRATEGY", "leave_missing")
+CPCB_WINDOW_DAYS = int(os.getenv("CPCB_WINDOW_DAYS", "1"))
 
 # Connection & Retry Policy
 HTTP_TIMEOUT = 30  # seconds
@@ -57,6 +72,9 @@ REQUIRED_TARGET_COLUMN = os.getenv("REQUIRED_TARGET_COLUMN", "AQI")
 REQUIRED_FEATURE_COLUMNS = os.getenv("REQUIRED_FEATURE_COLUMNS", "").split(",") if os.getenv("REQUIRED_FEATURE_COLUMNS") else []
 TEMPORAL_TOLERANCE_HOURS = float(os.getenv("TEMPORAL_TOLERANCE_HOURS", "1.0"))
 SPATIAL_TOLERANCE_KM = float(os.getenv("SPATIAL_TOLERANCE_KM", "50.0"))
+
+# Configured adaptive lookback window is set to 14 days because the GEE collector was run with lookback=14 to resolve Sentinel-5P/MODIS publication lag and cloud cover issues during monsoon months.
+SATELLITE_LOOKBACK_DAYS = int(os.getenv("SATELLITE_LOOKBACK_DAYS", "14"))
 
 # Day 4B Machine Learning Pipeline defaults
 TRAIN_RATIO = float(os.getenv("TRAIN_RATIO", "0.70"))
@@ -76,4 +94,28 @@ RANDOM_FOREST_PARAMS = {
     "random_state": RANDOM_STATE,
     "n_jobs": -1
 }
+
+# ---------------------------------------------------------------------------
+# Phase 1 — Historical Training Pipeline (appended, non-breaking)
+# All knobs default to safe values; none affect the real-time pipeline.
+# ---------------------------------------------------------------------------
+
+# Date window for historical ingestion (ISO-8601 format: YYYY-MM-DD)
+HIST_START_DATE = os.getenv("HIST_START_DATE", "2020-01-01")
+HIST_END_DATE = os.getenv("HIST_END_DATE", "2024-12-31")
+
+# GEE batch chunk size in days (controls per-request size to avoid quota limits)
+HIST_GEE_CHUNK_DAYS = int(os.getenv("HIST_GEE_CHUNK_DAYS", "30"))
+
+# ERA5 batch chunk size in calendar months
+HIST_ERA5_CHUNK_MONTHS = int(os.getenv("HIST_ERA5_CHUNK_MONTHS", "1"))
+
+# Output directory for historical analysis-ready dataset artifacts
+HIST_OUTPUT_DIR = FEATURES_DIR / "historical"
+
+# Tag prefix used when naming versioned historical model artifacts
+HIST_MODEL_TAG = os.getenv("HIST_MODEL_TAG", "historical")
+
+# Minimum non-null AQI rows required before model training proceeds
+HIST_MIN_TRAINING_ROWS = int(os.getenv("HIST_MIN_TRAINING_ROWS", "500"))
 

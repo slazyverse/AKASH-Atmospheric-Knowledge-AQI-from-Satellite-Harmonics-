@@ -1,0 +1,13 @@
+station_id,station_name,city,state,latitude,longitude,elevation,land_cover_code,land_cover_desc,distance_to_coast,total_observations,india_bounding_box_check,duplicate_coordinate_check
+ST_0073c676,"Victoria, Kolkata - WBPCB",Kolkata,West Bengal,,,9.0,50.0,Built-up (Urban),87.1,1,PASS_INSIDE_INDIA,UNIQUE
+ST_3c956e87,"Lalbagh, Lucknow - UPPCB",Lucknow,Uttar Pradesh,,,119.0,40.0,Cropland,848.38,1,PASS_INSIDE_INDIA,UNIQUE
+ST_44c28da7,"Sanathnagar, Hyderabad - TSPCB",Hyderabad,Telangana,17.4559458,78.4332152,552.0,50.0,Built-up (Urban),265.64,1,PASS_INSIDE_INDIA,UNIQUE
+ST_6738592a,"Velachery, Chennai - TNPCB",Chennai,Tamil Nadu,,,8.0,50.0,Built-up (Urban),10.53,1,PASS_INSIDE_INDIA,UNIQUE
+ST_86a1774d,"Anand Vihar, Delhi - DPCC",Delhi,Delhi,28.63576,77.22445,209.0,10.0,Trees,932.25,649,PASS_INSIDE_INDIA,UNIQUE
+ST_986f38db,"Arumbakkam, Chennai - TNPCB",Chennai,Tamil Nadu,13.0664,80.2112,8.0,50.0,Built-up (Urban),10.53,731,PASS_INSIDE_INDIA,UNIQUE
+ST_c4e4d1a0,"Bandra Kurla Complex, Mumbai - MPCB",Mumbai,Maharashtra,19.07283,72.88261,9.0,50.0,Built-up (Urban),16.39,709,PASS_INSIDE_INDIA,UNIQUE
+ST_d202e018,"Rajbansi Nagar, Patna - BSPCB",Patna,Bihar,25.599486,85.113666,60.0,50.0,Built-up (Urban),494.21,1,PASS_INSIDE_INDIA,UNIQUE
+ST_d6943ddf,SPARTAN - IIT Kanpur,Kanpur,Uttar Pradesh,26.519,80.233,134.0,50.0,Built-up (Urban),883.47,1,PASS_INSIDE_INDIA,UNIQUE
+ST_db6bb351,"Ballygunge, Kolkata - WBPCB",Kolkata,West Bengal,22.5367507,88.3638022,9.0,50.0,Built-up (Urban),87.1,680,PASS_INSIDE_INDIA,UNIQUE
+ST_e3823f2d,"Silk Board, Bengaluru - KSPCB",Bengaluru,Karnataka,12.917348,77.622813,885.0,50.0,Built-up (Urban),261.33,1,PASS_INSIDE_INDIA,UNIQUE
+ST_e954f86b,"Central University, Hyderabad - TSPCB",Hyderabad,Telangana,17.460103,78.334361,599.0,10.0,Trees,274.0,557,PASS_INSIDE_INDIA,UNIQUE

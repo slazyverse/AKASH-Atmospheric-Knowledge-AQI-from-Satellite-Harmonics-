@@ -1,0 +1,34 @@
+year,calendar_date,observation_count,sampling_role
+2020,2020-01-01,1,Historical Baseline Seed
+2025,2025-01-01,120,Peak Winter Pollution Benchmark
+2025,2025-01-02,116,Peak Winter Pollution Benchmark
+2025,2025-01-03,96,Peak Winter Pollution Benchmark
+2025,2025-01-04,91,Peak Winter Pollution Benchmark
+2025,2025-01-05,69,Peak Winter Pollution Benchmark
+2025,2025-01-06,80,Peak Winter Pollution Benchmark
+2025,2025-01-07,95,Peak Winter Pollution Benchmark
+2025,2025-01-08,109,Peak Winter Pollution Benchmark
+2025,2025-01-09,120,Peak Winter Pollution Benchmark
+2025,2025-01-10,116,Peak Winter Pollution Benchmark
+2025,2025-01-11,119,Peak Winter Pollution Benchmark
+2025,2025-01-12,106,Peak Winter Pollution Benchmark
+2025,2025-01-13,113,Peak Winter Pollution Benchmark
+2025,2025-01-14,109,Peak Winter Pollution Benchmark
+2025,2025-01-15,100,Peak Winter Pollution Benchmark
+2025,2025-01-16,118,Peak Winter Pollution Benchmark
+2025,2025-01-17,120,Peak Winter Pollution Benchmark
+2025,2025-01-18,119,Peak Winter Pollution Benchmark
+2025,2025-01-19,119,Peak Winter Pollution Benchmark
+2025,2025-01-20,100,Peak Winter Pollution Benchmark
+2025,2025-01-21,120,Peak Winter Pollution Benchmark
+2025,2025-01-22,106,Peak Winter Pollution Benchmark
+2025,2025-01-23,95,Peak Winter Pollution Benchmark
+2025,2025-01-24,106,Peak Winter Pollution Benchmark
+2025,2025-01-25,117,Peak Winter Pollution Benchmark
+2025,2025-01-26,120,Peak Winter Pollution Benchmark
+2025,2025-01-27,116,Peak Winter Pollution Benchmark
+2025,2025-01-28,96,Peak Winter Pollution Benchmark
+2025,2025-01-29,104,Peak Winter Pollution Benchmark
+2025,2025-01-30,109,Peak Winter Pollution Benchmark
+2025,2025-01-31,100,Peak Winter Pollution Benchmark
+2026,2026-07-13,8,Realtime Stream Check

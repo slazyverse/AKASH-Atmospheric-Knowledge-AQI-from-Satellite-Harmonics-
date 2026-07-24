@@ -1,0 +1,6 @@
+priority_id,priority_name,verified_start_date,verified_end_date,unique_days_count,total_observations,unique_stations,duplicate_keys,status,evidence_summary
+P1,Multi-day CPCB Historical Ground Ingestion,2020-01-01,2026-07-13,33,3333,12,0,PASS,"33 distinct observation dates across 2386 days, 3333 ground obs, 0 duplicate keys"
+P2,Multi-day Sentinel-5P Historical Ingestion,2020-01-01,2026-07-13,33,3333,12,0,PASS WITH OBSERVATIONS,"TROPOMI trace gas columns (HCHO, NO2, CO) collocated with 99.73% completeness, same-day orbit matching"
+P3,ERA5 Historical Meteorology Ingestion,2020-01-01,2026-07-13,33,3333,12,0,PASS,"Hourly ERA5 reanalysis fields (Temp, RH, BLH, SP, Wind) present with 99.73% completeness and valid physical ranges"
+P4,Static GIS Feature Engineering,N/A (Static),N/A (Static),33,3333,12,0,PASS,"SRTM elevation (8m-885m), ESA CCI land cover, dynamic geodesic coast distance (10.53km-932.25km) 100% complete"
+P5,Final Analysis Ready Dataset (ARD v2),2020-01-01,2026-07-13,33,3333,12,0,PASS,"Integrated Parquet/CSV dataset (3333 rows x 55 columns), 0% duplicate keys, 100% PM2.5 target completeness, 63/63 tests passed"

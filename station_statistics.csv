@@ -1,0 +1,13 @@
+station_id,station_name,city,state,observations,first_observation,last_observation,expected_observations,completeness_percentage,duplicate_timestamps,missing_timestamps
+ST_0073c676,"Victoria, Kolkata - WBPCB",Kolkata,West Bengal,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_3c956e87,"Lalbagh, Lucknow - UPPCB",Lucknow,Uttar Pradesh,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_44c28da7,"Sanathnagar, Hyderabad - TSPCB",Hyderabad,Telangana,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_6738592a,"Velachery, Chennai - TNPCB",Chennai,Tamil Nadu,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_86a1774d,"Anand Vihar, Delhi - DPCC",Delhi,Delhi,649,2025-01-01 00:30:00+00:00,2026-07-13 19:00:00+00:00,13411,4.84,0,12762
+ST_986f38db,"Arumbakkam, Chennai - TNPCB",Chennai,Tamil Nadu,731,2025-01-01 00:30:00+00:00,2025-01-31 23:30:00+00:00,744,98.25,0,13
+ST_c4e4d1a0,"Bandra Kurla Complex, Mumbai - MPCB",Mumbai,Maharashtra,709,2025-01-01 00:30:00+00:00,2026-07-13 19:00:00+00:00,13411,5.29,0,12702
+ST_d202e018,"Rajbansi Nagar, Patna - BSPCB",Patna,Bihar,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_d6943ddf,SPARTAN - IIT Kanpur,Kanpur,Uttar Pradesh,1,2020-01-01 00:00:00+00:00,2020-01-01 00:00:00+00:00,1,100.0,0,0
+ST_db6bb351,"Ballygunge, Kolkata - WBPCB",Kolkata,West Bengal,680,2025-01-01 00:30:00+00:00,2025-01-31 23:30:00+00:00,744,91.4,0,64
+ST_e3823f2d,"Silk Board, Bengaluru - KSPCB",Bengaluru,Karnataka,1,2026-07-13 19:00:00+00:00,2026-07-13 19:00:00+00:00,1,100.0,0,0
+ST_e954f86b,"Central University, Hyderabad - TSPCB",Hyderabad,Telangana,557,2025-01-01 00:30:00+00:00,2025-01-31 23:30:00+00:00,744,74.87,0,187

@@ -1,0 +1,56 @@
+feature,total_missing_values,missing_percentage,available_percentage
+utc_time,3325,99.76,0.24
+PM10,3325,99.76,0.24
+NO2,3325,99.76,0.24
+SO2,3325,99.76,0.24
+CO,3325,99.76,0.24
+O3,3325,99.76,0.24
+location,3325,99.76,0.24
+AOD,1257,37.71,62.29
+AOD_055,1257,37.71,62.29
+AOD_047,1257,37.71,62.29
+v_wind_component,9,0.27,99.73
+Relative Humidity,9,0.27,99.73
+Boundary Layer Height,9,0.27,99.73
+Surface Pressure,9,0.27,99.73
+u_wind_component,9,0.27,99.73
+Temperature,9,0.27,99.73
+Wind Speed,9,0.27,99.73
+Wind Direction,9,0.27,99.73
+HCHO,9,0.27,99.73
+CO Column,9,0.27,99.73
+NO2 Column,9,0.27,99.73
+last_update,8,0.24,99.76
+station,8,0.24,99.76
+AQI,8,0.24,99.76
+AQI_outlier,8,0.24,99.76
+AQI_unit,8,0.24,99.76
+latitude,3,0.09,99.91
+longitude,3,0.09,99.91
+city,0,0.0,100.0
+state,0,0.0,100.0
+agency,0,0.0,100.0
+timezone,0,0.0,100.0
+country,0,0.0,100.0
+PM2.5,0,0.0,100.0
+data_source,0,0.0,100.0
+coordinate_status,0,0.0,100.0
+elevation,0,0.0,100.0
+land_cover_code,0,0.0,100.0
+land_cover_desc,0,0.0,100.0
+station_name,0,0.0,100.0
+timestamp_utc,0,0.0,100.0
+station_id,0,0.0,100.0
+PM2.5_outlier,0,0.0,100.0
+PM10_outlier,0,0.0,100.0
+NO2_outlier,0,0.0,100.0
+SO2_outlier,0,0.0,100.0
+CO_outlier,0,0.0,100.0
+O3_outlier,0,0.0,100.0
+PM2.5_unit,0,0.0,100.0
+PM10_unit,0,0.0,100.0
+NO2_unit,0,0.0,100.0
+SO2_unit,0,0.0,100.0
+CO_unit,0,0.0,100.0
+O3_unit,0,0.0,100.0
+distance_to_coast,0,0.0,100.0
