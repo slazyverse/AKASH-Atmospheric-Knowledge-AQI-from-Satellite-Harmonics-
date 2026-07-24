@@ -16,6 +16,11 @@ METEOROLOGY_FEATURES = [
     "Wind Direction",
     "Surface Pressure",
 ]
+PBL_FEATURES = [
+    "Ventilation Index",
+    "Inversion Lapse Rate",
+    "Hygroscopic Growth Factor",
+]
 SATELLITE_FEATURES = [
     "AOD",
     "HCHO",
@@ -25,7 +30,13 @@ SATELLITE_FEATURES = [
     "O3 Column",
 ]
 DERIVED_FEATURES = ["Day of Week", "Month", "Season", "Weekend Flag"]
-ALL_FEATURES = POLLUTANT_FEATURES + METEOROLOGY_FEATURES + SATELLITE_FEATURES + DERIVED_FEATURES
+ALL_FEATURES = (
+    POLLUTANT_FEATURES
+    + METEOROLOGY_FEATURES
+    + PBL_FEATURES
+    + SATELLITE_FEATURES
+    + DERIVED_FEATURES
+)
 SUPPORTED_MISSING_STRATEGIES = {"interpolation", "forward_fill", "station_median", "leave_missing"}
 
 
@@ -63,6 +74,8 @@ def season_from_month(month: object) -> object:
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Create derived features and ensure all expected ML-ready columns exist."""
+    from data_collection_pipeline.pbl_feature_engine import compute_pbl_features
+
     features = df.copy()
 
     if "u_wind_component" in features.columns and "v_wind_component" in features.columns:
@@ -74,6 +87,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             lambda row: wind_direction(row.get("u_wind_component"), row.get("v_wind_component")),
             axis=1,
         )
+
+    # Compute PBL features (Ventilation Index, Inversion Lapse Rate, Hygroscopic Growth Factor)
+    features = compute_pbl_features(features)
 
     features["Day of Week"] = features["timestamp"].dt.dayofweek
     features["Month"] = features["timestamp"].dt.month
