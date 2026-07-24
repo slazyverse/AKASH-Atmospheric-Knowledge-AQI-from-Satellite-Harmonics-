@@ -25,6 +25,7 @@ from typing import List, Optional
 import pandas as pd
 
 from data_collection_pipeline import era5_downloader, era5_processor, config
+from data_collection_pipeline.dlq import handle_ingestion_failure
 from data_collection_pipeline.historical_ingestor import config as hist_config
 
 logger = logging.getLogger(
@@ -129,10 +130,13 @@ class HistoricalERA5Collector:
             )
 
             if not success:
-                logger.warning(
-                    "ERA5 download for %d-%02d failed — skipping month.", year, month
+                handle_ingestion_failure(
+                    source="ERA5",
+                    operation="download_historical_month",
+                    message=f"ERA5 download for {year}-{month:02d} failed.",
+                    payload={"year": year, "month": month},
+                    logger_instance=logger,
                 )
-                continue
 
             # Move the downloaded NC from raw_data/ to our historical cache dir.
             raw_nc = config.RAW_DATA_DIR / nc_path.name
@@ -153,12 +157,21 @@ class HistoricalERA5Collector:
                         "ERA5 month %d-%02d processed: %d rows.", year, month, len(df)
                     )
                 except Exception as exc:  # noqa: BLE001
-                    logger.error(
-                        "Failed to read processed ERA5 CSV %s: %s", csv_path, exc
+                    handle_ingestion_failure(
+                        source="ERA5",
+                        operation="process_era5_netcdf",
+                        message=f"Failed to read processed ERA5 CSV {csv_path}: {exc}",
+                        original_exception=exc,
+                        payload={"year": year, "month": month},
+                        logger_instance=logger,
                     )
             else:
-                logger.warning(
-                    "ERA5 processing for %d-%02d did not produce a CSV.", year, month
+                handle_ingestion_failure(
+                    source="ERA5",
+                    operation="process_era5_netcdf",
+                    message=f"ERA5 processing for {year}-{month:02d} did not produce a CSV.",
+                    payload={"year": year, "month": month},
+                    logger_instance=logger,
                 )
 
         logger.info(
@@ -167,10 +180,13 @@ class HistoricalERA5Collector:
         )
 
         if not collected_frames:
-            logger.warning(
-                "No ERA5 data was collected for %s → %s.", start_date, end_date
+            handle_ingestion_failure(
+                source="ERA5",
+                operation="collect",
+                message=f"No ERA5 data was collected for {start_date} → {end_date}.",
+                payload={"start_date": start_date, "end_date": end_date},
+                logger_instance=logger,
             )
-            return pd.DataFrame()
 
         combined = pd.concat(collected_frames, ignore_index=True)
         

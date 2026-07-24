@@ -20,6 +20,8 @@ from typing import List, Optional
 
 import pandas as pd
 
+from data_collection_pipeline.dlq import handle_ingestion_failure
+from data_collection_pipeline.exceptions import IngestionError
 from data_collection_pipeline.historical_ingestor import config as hist_config
 
 logger = logging.getLogger(
@@ -135,8 +137,12 @@ class HistoricalSatelliteCollector:
                     )
                     collected_frames = [combined]
                 else:
-                    logger.warning(
-                        "Chunk %s returned no data — continuing.", chunk_date_str
+                    handle_ingestion_failure(
+                        source="Sentinel-5P",
+                        operation="collect_chunk",
+                        message=f"Chunk {chunk_date_str} returned no data.",
+                        payload={"date": chunk_date_str},
+                        logger_instance=logger,
                     )
 
             total_chunks += 1
@@ -149,11 +155,13 @@ class HistoricalSatelliteCollector:
         )
 
         if not collected_frames:
-            logger.warning(
-                "No satellite data was collected for %s → %s.",
-                start_date, end_date,
+            handle_ingestion_failure(
+                source="Sentinel-5P",
+                operation="collect",
+                message=f"No satellite data was collected for {start_date} → {end_date}.",
+                payload={"start_date": start_date, "end_date": end_date},
+                logger_instance=logger,
             )
-            return pd.DataFrame()
 
         return pd.concat(collected_frames, ignore_index=True)
 
@@ -173,19 +181,26 @@ class HistoricalSatelliteCollector:
             elif hasattr(sentinel5p_collector, "collect"):
                 df = sentinel5p_collector.collect(date=date_str)
             else:
-                # Fallback: import the CLI main and capture output.
-                logger.warning(
-                    "sentinel5p_collector does not expose a public Python API; "
-                    "attempting module-level fallback."
+                handle_ingestion_failure(
+                    source="Sentinel-5P",
+                    operation="collect_chunk",
+                    message="sentinel5p_collector does not expose a public Python API.",
+                    payload={"date": date_str},
+                    logger_instance=logger,
                 )
-                return None
 
             return df
         except Exception as exc:  # noqa: BLE001
-            logger.error(
-                "Satellite chunk '%s' failed: %s", date_str, exc
+            if isinstance(exc, IngestionError):
+                raise
+            handle_ingestion_failure(
+                source="Sentinel-5P",
+                operation="collect_chunk",
+                message=f"Satellite chunk '{date_str}' failed: {exc}",
+                original_exception=exc,
+                payload={"date": date_str},
+                logger_instance=logger,
             )
-            return None
 
     def _load_existing_dates(self) -> set:
         """Return the set of chunk-start dates already present in the output CSV."""

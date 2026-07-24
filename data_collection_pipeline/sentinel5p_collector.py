@@ -100,6 +100,8 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
 from data_collection_pipeline import config
+from data_collection_pipeline.dlq import handle_ingestion_failure
+from data_collection_pipeline.exceptions import IngestionError
 
 logger = logging.getLogger("data_collection_pipeline.sentinel5p")
 
@@ -1321,17 +1323,25 @@ def collect_satellite_data(
     from data_collection_pipeline.earth_engine.validator import validate_gee_startup
     validation_result = validate_gee_startup()
     if not validation_result.success:
-        logger.error(
-            "Google Earth Engine startup validation failed:\n%s",
-            validation_result.error_message
+        handle_ingestion_failure(
+            source="Sentinel-5P",
+            operation="collect_satellite_data",
+            message=f"Google Earth Engine startup validation failed: {validation_result.error_message}",
+            payload={"date": date_str},
+            logger_instance=logger,
         )
-        return False
 
     try:
         ee = _try_import_ee()
     except ImportError as exc:
-        logger.error("%s", exc)
-        return False
+        handle_ingestion_failure(
+            source="Sentinel-5P",
+            operation="collect_satellite_data",
+            message=f"Google Earth Engine import failed: {exc}",
+            original_exception=exc,
+            payload={"date": date_str},
+            logger_instance=logger,
+        )
 
     # ------------------------------------------------------------------
     # Step 2: Build station list (date range determined per-product below)

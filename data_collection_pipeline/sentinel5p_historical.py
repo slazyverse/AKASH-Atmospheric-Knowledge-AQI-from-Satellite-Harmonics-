@@ -9,6 +9,8 @@ import pandas as pd
 import numpy as np
 
 from data_collection_pipeline import config
+from data_collection_pipeline.dlq import handle_ingestion_failure
+from data_collection_pipeline.exceptions import IngestionError
 from data_collection_pipeline.earth_engine.initializer import initialize_ee, is_ee_initialized
 
 logger = logging.getLogger("data_collection_pipeline.sentinel5p_historical")
@@ -76,16 +78,21 @@ def fetch_sentinel_month_gee(
 
     # Initialize GEE
     ee_ready = False
+    init_exception = None
     try:
         ee_ready = initialize_ee()
     except Exception as e:
-        logger.warning(f"GEE initialization failed: {e}. Generating mock data.")
+        init_exception = e
 
     if not ee_ready or not is_ee_initialized():
-        mock_df = generate_mock_sentinel_data(stations, year, month)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        mock_df.to_parquet(output_path, compression="snappy", index=False)
-        return mock_df
+        handle_ingestion_failure(
+            source="Sentinel-5P",
+            operation="fetch_sentinel_month_gee",
+            message=f"GEE initialization failed for {year}-{month:02d}.",
+            original_exception=init_exception,
+            payload={"year": year, "month": month},
+            logger_instance=logger,
+        )
 
     import ee
     logger.info(f"Querying Sentinel-5P observations from GEE for {year}-{month:02d}...")
@@ -101,11 +108,13 @@ def fetch_sentinel_month_gee(
                 features.append(ee.Feature(ee.Geometry.Point([lon, lat]), {"station_id": stn_id}))
                 
         if not features:
-            logger.warning("No stations with valid coordinates to query from GEE. Using mock.")
-            mock_df = generate_mock_sentinel_data(stations, year, month)
-            output_path.parent.mkdir(parents=True, exist_ok=True)
-            mock_df.to_parquet(output_path, compression="snappy", index=False)
-            return mock_df
+            handle_ingestion_failure(
+                source="Sentinel-5P",
+                operation="fetch_sentinel_month_gee",
+                message=f"No stations with valid coordinates to query GEE for {year}-{month:02d}.",
+                payload={"year": year, "month": month},
+                logger_instance=logger,
+            )
             
         station_fc = ee.FeatureCollection(features)
         
@@ -176,19 +185,29 @@ def fetch_sentinel_month_gee(
                 
         df_result = pd.DataFrame(records)
         if df_result.empty:
-            logger.warning("GEE Sentinel-5P query returned empty results. Generating mock.")
-            df_result = generate_mock_sentinel_data(stations, year, month)
+            handle_ingestion_failure(
+                source="Sentinel-5P",
+                operation="fetch_sentinel_month_gee",
+                message=f"GEE Sentinel-5P query returned empty results for {year}-{month:02d}.",
+                payload={"year": year, "month": month},
+                logger_instance=logger,
+            )
             
         output_path.parent.mkdir(parents=True, exist_ok=True)
         df_result.to_parquet(output_path, compression="snappy", index=False)
         return df_result
         
     except Exception as e:
-        logger.error(f"Failed to query Sentinel-5P from GEE for {year}-{month:02d}: {e}. Generating mock.")
-        mock_df = generate_mock_sentinel_data(stations, year, month)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        mock_df.to_parquet(output_path, compression="snappy", index=False)
-        return mock_df
+        if isinstance(e, IngestionError):
+            raise
+        handle_ingestion_failure(
+            source="Sentinel-5P",
+            operation="fetch_sentinel_month_gee",
+            message=f"Failed to query Sentinel-5P from GEE for {year}-{month:02d}: {e}",
+            original_exception=e,
+            payload={"year": year, "month": month},
+            logger_instance=logger,
+        )
 
 def run_historical_sentinel_pipeline(
     start_year: int = 2023,

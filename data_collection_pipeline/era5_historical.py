@@ -9,6 +9,7 @@ import pandas as pd
 import numpy as np
 
 from data_collection_pipeline import config, utils
+from data_collection_pipeline.dlq import handle_ingestion_failure
 from data_collection_pipeline.era5_processor import VARIABLE_RENAME_MAP, OUTPUT_COLUMNS
 
 logger = logging.getLogger("data_collection_pipeline.era5_historical")
@@ -74,7 +75,7 @@ def download_historical_era5_month(
     backoff_factor: float = 2.0,
     force_fallback: bool = False
 ) -> bool:
-    """Retrieves one month of ERA5 data, utilizing caching, retries, and fallback."""
+    """Retrieves one month of ERA5 data, utilizing caching, retries, and failure handling."""
     if output_path.exists() and output_path.stat().st_size > 1024:
         logger.info(f"Found cached ERA5 file for {year}-{month:02d} at {output_path.name}. Skipping download.")
         return True
@@ -86,9 +87,13 @@ def download_historical_era5_month(
         has_credentials = True
 
     if force_fallback or not has_credentials:
-        logger.warning(f"No CDS API credentials or force_fallback enabled. Generating synthetic mock NetCDF for {year}-{month:02d}.")
-        generate_mock_era5_netcdf(output_path, year, month)
-        return True
+        handle_ingestion_failure(
+            source="ERA5",
+            operation="download_historical_month",
+            message=f"CDS API credentials missing or force_fallback enabled for {year}-{month:02d}.",
+            payload={"year": year, "month": month},
+            logger_instance=logger,
+        )
 
     # Setup request payload
     days_in_month = pd.Period(f"{year}-{month:02d}").days_in_month
@@ -107,6 +112,7 @@ def download_historical_era5_month(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     
+    last_exception: Optional[Exception] = None
     # Retry loop with exponential backoff
     for attempt in range(1, max_retries + 1):
         try:
@@ -117,15 +123,21 @@ def download_historical_era5_month(
             logger.info(f"Successfully downloaded ERA5 {year}-{month:02d}")
             return True
         except Exception as e:
+            last_exception = e
             logger.warning(f"Download attempt {attempt} failed: {e}")
             if attempt < max_retries:
                 wait_sec = backoff_factor ** attempt
                 logger.info(f"Retrying in {wait_sec} seconds...")
                 time.sleep(wait_sec)
                 
-    logger.error(f"All download attempts for {year}-{month:02d} failed. Generating mock fallback.")
-    generate_mock_era5_netcdf(output_path, year, month)
-    return True
+    handle_ingestion_failure(
+        source="ERA5",
+        operation="download_historical_month",
+        message=f"All download attempts for {year}-{month:02d} failed.",
+        original_exception=last_exception,
+        payload={"year": year, "month": month},
+        logger_instance=logger,
+    )
 
 def run_historical_era5_pipeline(
     start_year: int = 2023,
@@ -160,14 +172,25 @@ def run_historical_era5_pipeline(
                 months_processed.append(output_nc)
 
     if not months_processed:
-        raise RuntimeError("No historical ERA5 NetCDF files could be fetched or generated.")
+        handle_ingestion_failure(
+            source="ERA5",
+            operation="run_historical_era5_pipeline",
+            message=f"No historical ERA5 NetCDF files could be fetched for period {start_year}-{end_year}.",
+            payload={"start_year": start_year, "end_year": end_year},
+            logger_instance=logger,
+        )
 
     # Process files
     try:
         import xarray as xr
-    except ImportError:
-        logger.error("xarray not installed. Cannot process NetCDF files.")
-        return pd.DataFrame()
+    except ImportError as e:
+        handle_ingestion_failure(
+            source="ERA5",
+            operation="run_historical_era5_pipeline",
+            message="xarray not installed. Cannot process NetCDF files.",
+            original_exception=e,
+            logger_instance=logger,
+        )
 
     logger.info(f"Processing and consolidating {len(months_processed)} NetCDF files...")
     
@@ -225,7 +248,12 @@ def run_historical_era5_pipeline(
             logger.error(f"Failed to process NetCDF {nc_path.name}: {e}")
             
     if not processed_dfs:
-        raise RuntimeError("No NetCDF files successfully parsed into DataFrames.")
+        handle_ingestion_failure(
+            source="ERA5",
+            operation="run_historical_era5_pipeline",
+            message="No NetCDF files successfully parsed into DataFrames.",
+            logger_instance=logger,
+        )
         
     combined_df = pd.concat(processed_dfs, ignore_index=True)
     

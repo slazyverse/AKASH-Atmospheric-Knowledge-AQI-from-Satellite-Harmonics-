@@ -32,6 +32,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from data_collection_pipeline import config
+from data_collection_pipeline.dlq import handle_ingestion_failure
 
 logger = logging.getLogger("data_collection_pipeline.era5")
 
@@ -532,10 +533,11 @@ def prepare_era5_download(
             target_nc_path,
         )
     else:
-        logger.error(
-            "ERA5 download failed.  "
-            "The pipeline will fall back to placeholder meteorological data "
-            "until a valid NetCDF is available at %s.",
-            target_nc_path,
+        handle_ingestion_failure(
+            source="ERA5",
+            operation="prepare_era5_download",
+            message=f"ERA5 download failed for target file {output_filename}.",
+            payload={"output_filename": output_filename, "year": year, "month": month, "day": day},
+            logger_instance=logger,
         )
     return success

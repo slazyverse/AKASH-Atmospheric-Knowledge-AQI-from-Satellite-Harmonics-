@@ -5,6 +5,7 @@ import datetime
 import pandas as pd
 from typing import Optional, Dict, List
 from data_collection_pipeline import config, utils
+from data_collection_pipeline.dlq import handle_ingestion_failure
 
 logger = logging.getLogger("data_collection_pipeline.cpcb")
 
@@ -14,8 +15,12 @@ def fetch_cpcb_raw(limit: int = 5000) -> Optional[pd.DataFrame]:
     Handles pagination and returns a pandas DataFrame of the raw records.
     """
     if not config.DATA_GOV_API_KEY:
-        logger.warning("DATA_GOV_API_KEY not found in config. Falling back to Mock Data.")
-        return None
+        handle_ingestion_failure(
+            source="CPCB",
+            operation="fetch_cpcb_raw",
+            message="DATA_GOV_API_KEY missing from configuration.",
+            logger_instance=logger,
+        )
 
     all_records: List[Dict] = []
     offset = 0
@@ -28,25 +33,47 @@ def fetch_cpcb_raw(limit: int = 5000) -> Optional[pd.DataFrame]:
             "limit": limit
         }
         
-        response = utils.safe_request(config.CPCB_BASE_URL, params=params)
+        try:
+            response = utils.safe_request(config.CPCB_BASE_URL, params=params)
+        except Exception as e:
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="fetch_cpcb_raw",
+                message=f"Network error while fetching CPCB API: {e}",
+                original_exception=e,
+                logger_instance=logger,
+            )
+
         if response is None:
-            logger.error("Failed to fetch CPCB data from API (no response).")
-            return None
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="fetch_cpcb_raw",
+                message="Failed to fetch CPCB data from API (network failure or empty response).",
+                logger_instance=logger,
+            )
             
         try:
             data = response.json()
             
             if not isinstance(data, dict):
-                logger.error("CPCB API response is not a valid JSON dictionary.")
-                return None
+                handle_ingestion_failure(
+                    source="CPCB",
+                    operation="fetch_cpcb_raw",
+                    message="CPCB API response is not a valid JSON dictionary.",
+                    logger_instance=logger,
+                )
                 
             records = data.get("records")
             total = data.get("total")
             
             # Type and structural validation
             if not isinstance(records, list):
-                logger.error("CPCB response 'records' key is missing or is not a list.")
-                return None
+                handle_ingestion_failure(
+                    source="CPCB",
+                    operation="fetch_cpcb_raw",
+                    message="CPCB response 'records' key is missing or is not a list.",
+                    logger_instance=logger,
+                )
             
             try:
                 total_count = int(total) if total is not None else 0
@@ -68,17 +95,37 @@ def fetch_cpcb_raw(limit: int = 5000) -> Optional[pd.DataFrame]:
                 break
                 
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decoding failed for CPCB response: {e}")
-            return None
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="fetch_cpcb_raw",
+                message=f"JSON decoding failed for CPCB response: {e}",
+                original_exception=e,
+                logger_instance=logger,
+            )
         except KeyError as e:
-            logger.error(f"Missing expected key in CPCB response structure: {e}")
-            return None
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="fetch_cpcb_raw",
+                message=f"Missing expected key in CPCB response structure: {e}",
+                original_exception=e,
+                logger_instance=logger,
+            )
         except ValueError as e:
-            logger.error(f"ValueError while parsing CPCB API parameters: {e}")
-            return None
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="fetch_cpcb_raw",
+                message=f"ValueError while parsing CPCB API parameters: {e}",
+                original_exception=e,
+                logger_instance=logger,
+            )
             
     if not all_records:
-        return None
+        handle_ingestion_failure(
+            source="CPCB",
+            operation="fetch_cpcb_raw",
+            message="No records returned from CPCB API.",
+            logger_instance=logger,
+        )
         
     return pd.DataFrame(all_records)
 
@@ -235,15 +282,26 @@ def generate_mock_cpcb_data(window_days: int = 1) -> pd.DataFrame:
 def collect_cpcb_data(window_days: int = 1) -> pd.DataFrame:
     """
     Main function to orchestrate CPCB data collection.
-    Tries fetching from the API first; falls back to mock data if unsuccessful.
+    Fetches real-time observations from the CPCB API. Raises IngestionError on failure.
     """
     logger.info("Starting CPCB Air Quality data collection...")
     df_raw = fetch_cpcb_raw()
     
-    if df_raw is not None and not df_raw.empty:
-        logger.info(f"Successfully fetched {len(df_raw)} raw rows from CPCB API. Post-processing...")
-        df_processed = process_cpcb_records(df_raw)
-        return df_processed
-    else:
-        logger.warning("CPCB API data unavailable. Reverting to fallback mock data.")
-        return generate_mock_cpcb_data(window_days=window_days)
+    if df_raw is None or df_raw.empty:
+        handle_ingestion_failure(
+            source="CPCB",
+            operation="collect_cpcb_data",
+            message="CPCB API returned no data.",
+            logger_instance=logger,
+        )
+
+    logger.info(f"Successfully fetched {len(df_raw)} raw rows from CPCB API. Post-processing...")
+    df_processed = process_cpcb_records(df_raw)
+    if df_processed is None or df_processed.empty:
+        handle_ingestion_failure(
+            source="CPCB",
+            operation="process_cpcb_records",
+            message="Failed to process CPCB records into wide DataFrame.",
+            logger_instance=logger,
+        )
+    return df_processed

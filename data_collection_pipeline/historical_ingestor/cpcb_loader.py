@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from data_collection_pipeline import config, openaq_collector
+from data_collection_pipeline.dlq import handle_ingestion_failure
 from data_collection_pipeline.historical_ingestor import config as hist_config
 
 logger = logging.getLogger("data_collection_pipeline.historical_ingestor.cpcb_loader")
@@ -229,9 +230,12 @@ class HistoricalCPCBLoader:
 
         # 3. Merger: Combine OpenAQ and CPCB observations
         if cpcb_obs.empty and openaq_obs.empty:
-            raise RuntimeError(
-                f"No ground observations could be loaded or parsed from CPCB or OpenAQ "
-                f"for range {start_date} -> {end_date}."
+            handle_ingestion_failure(
+                source="CPCB",
+                operation="load",
+                message=f"No ground observations could be loaded or parsed from CPCB or OpenAQ for range {start_date} -> {end_date}.",
+                payload={"start_date": start_date, "end_date": end_date},
+                logger_instance=logger,
             )
             
         merged_obs = self._merge_and_deduplicate(cpcb_obs, openaq_obs)
