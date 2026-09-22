@@ -1,1 +1,1 @@
-# AKASH-Atmospheric-Knowledge-AQI-from-Satellite-Harmonics
+# AKASH-Atmospheric-Knowledge-AQI-from-Satellite-Harmonics-
