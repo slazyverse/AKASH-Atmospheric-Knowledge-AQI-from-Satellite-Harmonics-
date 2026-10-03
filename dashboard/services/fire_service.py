@@ -4,7 +4,8 @@ dashboard/services/fire_service.py — Fire Monitoring service interface.
 Provides active fire detection data from MODIS/VIIRS satellites.
 
 Day 3: Methods call the live APIClient against GET /api/v1/fire.
-       Falls back to stub data on any APIError.
+       Offline demo data is returned only when the backend is unreachable;
+       an empty result is passed through as [].
 
 API endpoints consumed:
   GET /api/v1/fire — Active fire detections + alerts (MODIS/VIIRS)
@@ -46,7 +47,7 @@ class FireAlert:
     issued_at: datetime = field(default_factory=datetime.utcnow)
 
 
-# ── Fallback stub data ─────────────────────────────────────────────────────────
+# ── Offline demo data (used only when the backend is unreachable) ─────────────
 
 _STUB_EVENTS = [
     FireEvent("F-2024-001", 23.312, 85.334, 142.4, 328.7, "VIIRS-SNPP",   "high",    "forest",    "Jharkhand",        "Ranchi"),
@@ -74,16 +75,18 @@ class FireMonitoringService:
         min_frp: float = 10.0,
         bbox: tuple[float, float, float, float] | None = None,
         hours: int = 24,
+        region: str = "All India",
     ) -> list[FireEvent]:
         """
         Return currently active fire detections from GET /api/v1/fire.
-        Falls back to stub data if the backend is offline.
+        Returns [] when nothing matches; offline demo data only if the backend
+        is unreachable.
         """
         try:
-            resp = self._client.get("/fire", params={"min_frp": min_frp, "hours": hours})
+            resp = self._client.get(
+                "/fire", params={"min_frp": min_frp, "hours": hours, "region": region}
+            )
             raw_events = resp.data.get("events", [])
-            if not raw_events:
-                return _STUB_EVENTS
 
             return [
                 FireEvent(
@@ -109,13 +112,12 @@ class FireMonitoringService:
     def get_active_alerts(self) -> list[FireAlert]:
         """
         Return high-severity fire alerts from GET /api/v1/fire.
-        Falls back to stub alerts if the backend is offline.
+        Returns [] when there are no alerts; offline demo alerts only if the
+        backend is unreachable.
         """
         try:
             resp = self._client.get("/fire")
             raw_alerts = resp.data.get("alerts", [])
-            if not raw_alerts:
-                return _STUB_ALERTS
 
             return [
                 FireAlert(

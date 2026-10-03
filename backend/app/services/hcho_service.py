@@ -4,8 +4,10 @@ backend/app/services/hcho_service.py — HCHO Hotspot data service.
 Business logic for Formaldehyde column density hotspot detection data.
 Sourced from Sentinel-5P TROPOMI Level-2 HCHO product.
 
-Day 3: Returns realistic in-memory stub data.
-Day N: Replace with PostGIS spatial queries and TROPOMI NetCDF ingestion pipeline.
+Data source: the team's hotspot clusters (cluster_summary.json) when
+HCHO_HOTSPOTS_PATH is configured (see app.data.hotspots); otherwise a static
+demo (stub) snapshot of 5 hotspots dated "today" (UTC) — NOT real TROPOMI
+detections, with illustrative source_type / confidence.
 """
 
 from __future__ import annotations
@@ -13,11 +15,12 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 
 from app.core.logging import get_logger
+from app.data.sources import sources
 from app.schemas.hcho import HCHOHotspotItem, HCHOHotspotsResponse
 
 logger = get_logger(__name__)
 
-# ── Realistic stub data ────────────────────────────────────────────────────────
+# ── Demo (stub) data ───────────────────────────────────────────────────────────
 
 _STUB_HOTSPOTS: list[dict] = [
     {
@@ -69,26 +72,50 @@ class HCHOService:
         Return detected HCHO hotspots filtered by date and confidence threshold.
 
         Args:
-            query_date:     TROPOMI observation date (defaults to today UTC).
-            min_confidence: Minimum confidence score threshold [0.0, 1.0].
+            query_date:     Observation date. Hotspot file: omitted → the whole
+                            latest snapshot; given → only clusters whose
+                            observation_date matches (undated clusters never match).
+                            Demo: defaults to today UTC; other dates return nothing.
+            min_confidence: Minimum confidence threshold [0.0, 1.0]. Clusters
+                            without a confidence score are not filtered out.
 
         Returns:
             HCHOHotspotsResponse with filtered hotspot list and query metadata.
         """
-        query_date = query_date or date.today()
-        now = datetime.now(tz=timezone.utc)
-
         logger.info(
             "Fetching HCHO hotspots",
             query_date=str(query_date),
             min_confidence=min_confidence,
         )
 
-        filtered = [
-            HCHOHotspotItem(**{**h, "detected_at": now})
-            for h in _STUB_HOTSPOTS
-            if h["confidence"] >= min_confidence
-        ]
+        if sources.hotspots is not None:
+            filtered = [
+                HCHOHotspotItem(
+                    hotspot_id=h.hotspot_id,
+                    latitude=h.latitude,
+                    longitude=h.longitude,
+                    radius_km=h.radius_km,
+                    column_density=h.column_density,
+                    source_type=h.source_type,
+                    confidence=h.confidence,
+                    detected_at=h.observed_at,
+                )
+                for h in sources.hotspots
+                if (h.confidence is None or h.confidence >= min_confidence)
+                and (
+                    query_date is None
+                    or (h.observed_at is not None and h.observed_at.date() == query_date)
+                )
+            ]
+        else:
+            now = datetime.now(tz=timezone.utc)
+            query_date = query_date or now.date()
+            snapshot = _STUB_HOTSPOTS if query_date == now.date() else []
+            filtered = [
+                HCHOHotspotItem(**{**h, "detected_at": now})
+                for h in snapshot
+                if h["confidence"] >= min_confidence
+            ]
 
         logger.debug("HCHO hotspot query complete", returned=len(filtered))
 

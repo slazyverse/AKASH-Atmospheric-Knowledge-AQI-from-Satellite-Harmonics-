@@ -89,7 +89,7 @@ class AQIRasterInterface(COGRasterInterface):
     def __init__(self) -> None:
         super().__init__(
             layer_id="aqi_interpolation_raster",
-            display_name="Interpolated AQI Raster",
+            display_name="AQI Raster (placeholder — not implemented)",
             colormap_name="turbo",  # Vibrant color ramp suitable for multi-hazard AQI bands
         )
 
@@ -117,7 +117,7 @@ class AQIRasterInterface(COGRasterInterface):
             height=2750,
             min_value=0.0,
             max_value=500.0,
-            band_name="CPCB_AQI_kriging",
+            band_name="placeholder",
         )
 
     def get_legend_colors(self) -> List[Dict[str, Any]]:
@@ -141,7 +141,7 @@ class HCHORasterInterface(COGRasterInterface):
     def __init__(self) -> None:
         super().__init__(
             layer_id="s5p_hcho_raster",
-            display_name="Sentinel-5P HCHO Column Density",
+            display_name="Sentinel-5P HCHO Column Density (placeholder — not implemented)",
             colormap_name="magma",  # Dark purple to bright yellow, excellent for density visualization
         )
 
@@ -186,7 +186,7 @@ class FireRasterInterface(COGRasterInterface):
     def __init__(self) -> None:
         super().__init__(
             layer_id="modis_viirs_fire_density",
-            display_name="Fire Radiative Power Density",
+            display_name="Fire Radiative Power Density (placeholder — not implemented)",
             colormap_name="inferno",  # Dark orange to yellow, representing fire thermal output
         )
 

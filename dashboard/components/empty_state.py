@@ -62,7 +62,7 @@ def render_no_data(
     if action_label and on_action:
         col = st.columns([1, 2, 1])[1]
         with col:
-            if st.button(action_label, use_container_width=True, key=f"empty_action_{title[:10]}"):
+            if st.button(action_label, width="stretch", key=f"empty_action_{title[:10]}"):
                 on_action()
 
 
@@ -149,14 +149,14 @@ def render_coming_soon(
     )
 
 
-def render_stub_badge() -> None:
-    """Render a small 'Day 2 Stub' badge — shown in placeholder sections."""
+def render_stub_badge(label: str = "Demo data — not real measurements") -> None:
+    """Render a small badge marking a section as demo / placeholder content."""
     st.markdown(
         f"""
         <div style="display:inline-block;background:#21262D;border:1px solid {BORDER_DEFAULT};
                     border-radius:20px;padding:3px 10px;font-size:0.7rem;color:{TEXT_MUTED};
                     margin-bottom:8px">
-          🔧 Day 2 Stub — Live data in Day 3
+          🔧 {label}
         </div>
         """,
         unsafe_allow_html=True,

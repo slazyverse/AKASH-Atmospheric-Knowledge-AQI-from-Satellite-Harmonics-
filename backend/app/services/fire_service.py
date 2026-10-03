@@ -2,56 +2,57 @@
 backend/app/services/fire_service.py — Fire Monitoring data service.
 
 Business logic for active fire detection data from MODIS and VIIRS satellites.
-Fire events are cross-referenced with AQI monitoring stations to estimate
-smoke impact using trajectory modelling.
 
-Day 3: Returns realistic in-memory stub data.
-Day N: Replace with real-time NASA FIRMS API ingestion and PostGIS spatial queries.
+Current state: serves 5 static demo (stub) events and 2 illustrative alerts —
+NOT real FIRMS detections, and no smoke-trajectory model exists. `hours_ago`
+gives each demo event a detection age so the `hours` filter is meaningful.
+Planned: replace with a real fire-detection source.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.regions import region_matches
 from app.schemas.fire import FireAlertItem, FireEventItem, FireResponse
 
 logger = get_logger(__name__)
 
-# ── Realistic stub data ────────────────────────────────────────────────────────
+# ── Demo (stub) data ───────────────────────────────────────────────────────────
 
 _STUB_EVENTS: list[dict[str, Any]] = [
     {
-        "event_id": "F-2024-001",
+        "event_id": "F-2024-001", "hours_ago": 2.0,
         "latitude": 23.312, "longitude": 85.334,
         "frp": 142.4, "brightness": 328.7,
         "satellite": "VIIRS-SNPP", "confidence": "high",
         "land_cover": "forest", "state": "Jharkhand", "district": "Ranchi",
     },
     {
-        "event_id": "F-2024-002",
+        "event_id": "F-2024-002", "hours_ago": 5.5,
         "latitude": 21.145, "longitude": 81.684,
         "frp": 87.2, "brightness": 312.4,
         "satellite": "MODIS", "confidence": "nominal",
         "land_cover": "cropland", "state": "Chhattisgarh", "district": "Bilaspur",
     },
     {
-        "event_id": "F-2024-003",
+        "event_id": "F-2024-003", "hours_ago": 9.0,
         "latitude": 27.891, "longitude": 95.421,
         "frp": 210.1, "brightness": 341.2,
         "satellite": "VIIRS-NOAA20", "confidence": "high",
         "land_cover": "forest", "state": "Arunachal Pradesh", "district": "Lohit",
     },
     {
-        "event_id": "F-2024-004",
+        "event_id": "F-2024-004", "hours_ago": 14.0,
         "latitude": 15.312, "longitude": 75.712,
         "frp": 34.6, "brightness": 289.1,
         "satellite": "MODIS", "confidence": "nominal",
         "land_cover": "grassland", "state": "Karnataka", "district": "Dharwad",
     },
     {
-        "event_id": "F-2024-005",
+        "event_id": "F-2024-005", "hours_ago": 20.0,
         "latitude": 29.934, "longitude": 78.162,
         "frp": 58.3, "brightness": 301.6,
         "satellite": "VIIRS-SNPP", "confidence": "high",
@@ -101,14 +102,17 @@ class FireService:
         Return active fire detections and alerts within the specified time window.
 
         Args:
-            region:  Geographic filter (currently unimplemented; applied in Day N DB queries).
+            region:  "All India" (all), a zone ("North", "Northeast India", ...),
+                     or a state / district name (case-insensitive).
             min_frp: Minimum Fire Radiative Power threshold in megawatts.
             hours:   Time window in hours (detections older than this are excluded).
 
         Returns:
-            FireResponse containing filtered events and all active alerts.
+            FireResponse containing the filtered events and the alerts that
+            refer to those events.
         """
         now = datetime.now(tz=timezone.utc)
+        window_start = now - timedelta(hours=hours)
 
         logger.info(
             "Fetching fire data",
@@ -117,15 +121,22 @@ class FireService:
             hours=hours,
         )
 
-        filtered_events = [
-            FireEventItem(**{**ev, "detected_at": now})
-            for ev in _STUB_EVENTS
-            if ev["frp"] >= min_frp
-        ]
+        filtered_events: list[FireEventItem] = []
+        for ev in _STUB_EVENTS:
+            detected_at = now - timedelta(hours=ev["hours_ago"])
+            if (
+                ev["frp"] >= min_frp
+                and detected_at >= window_start
+                and region_matches(region, ev["state"], ev["district"])
+            ):
+                fields = {k: v for k, v in ev.items() if k != "hours_ago"}
+                filtered_events.append(FireEventItem(**fields, detected_at=detected_at))
 
+        returned_ids = {ev.event_id for ev in filtered_events}
         alerts = [
             FireAlertItem(**{**al, "issued_at": now})
             for al in _STUB_ALERTS
+            if al["fire_event_id"] in returned_ids
         ]
 
         logger.debug(

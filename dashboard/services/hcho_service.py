@@ -4,7 +4,8 @@ dashboard/services/hcho_service.py — HCHO Hotspot detection service interface.
 Provides HCHO column density data from Sentinel-5P TROPOMI for the dashboard.
 
 Day 3: Methods call the live APIClient against GET /api/v1/hcho/hotspots.
-       Falls back to stub data on any APIError.
+       Offline demo data is returned only when the backend is unreachable;
+       an empty result (404) is passed through as [].
 
 API endpoints consumed:
   GET /api/v1/hcho/hotspots — Detected hotspot polygons with density values
@@ -16,7 +17,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
-from dashboard.services.api_client import APIClient, APIError
+from dashboard.services.api_client import APIClient, APIError, APINotFoundError
 
 
 @dataclass
@@ -25,10 +26,10 @@ class HCHOHotspot:
     hotspot_id: str
     latitude: float
     longitude: float
-    radius_km: float
+    radius_km: float | None         # None = not provided by the source
     column_density: float           # molecules/cm² × 10¹⁵
     source_type: str                # industrial | biogenic | biomass_burning | unknown
-    confidence: float               # 0.0 – 1.0
+    confidence: float | None        # 0.0 – 1.0; None = not scored
     detected_at: datetime = field(default_factory=datetime.utcnow)
 
 
@@ -41,7 +42,7 @@ class HCHOTrend:
     anomaly_score: float            # Deviation from climatological baseline
 
 
-# ── Fallback stub data ─────────────────────────────────────────────────────────
+# ── Offline demo data (used only when the backend is unreachable) ─────────────
 
 _STUB_HOTSPOTS = [
     HCHOHotspot("HS-001", 22.572, 88.363, 45.2, 12.4, "industrial",     0.91),
@@ -64,7 +65,8 @@ class HCHOService:
     ) -> list[HCHOHotspot]:
         """
         Return detected HCHO hotspots from GET /api/v1/hcho/hotspots.
-        Falls back to stub data if the backend is offline.
+        Returns [] when nothing matches; offline demo data only if the backend
+        is unreachable.
         """
         try:
             params: dict[str, Any] = {"min_confidence": min_confidence}
@@ -72,24 +74,25 @@ class HCHOService:
                 params["date"] = date_str
             resp = self._client.get("/hcho/hotspots", params=params)
             items = resp.data.get("items", [])
-            if not items:
-                return _STUB_HOTSPOTS
 
             return [
                 HCHOHotspot(
                     hotspot_id=h["hotspot_id"],
                     latitude=h["latitude"],
                     longitude=h["longitude"],
-                    radius_km=h["radius_km"],
+                    radius_km=h.get("radius_km"),
                     column_density=h["column_density"],
                     source_type=h["source_type"],
-                    confidence=h["confidence"],
-                    detected_at=datetime.fromisoformat(
-                        h["detected_at"].replace("Z", "+00:00")
+                    confidence=h.get("confidence"),
+                    detected_at=(
+                        datetime.fromisoformat(h["detected_at"].replace("Z", "+00:00"))
+                        if h.get("detected_at") else None
                     ),
                 )
                 for h in items
             ]
+        except APINotFoundError:
+            return []
         except APIError:
             return _STUB_HOTSPOTS
 

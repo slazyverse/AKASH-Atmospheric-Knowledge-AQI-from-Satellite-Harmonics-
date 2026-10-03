@@ -117,7 +117,7 @@ def render_aqi_time_series(df: pd.DataFrame, title: str = "AQI Trend Over Time")
 
     _apply_dark_theme(fig, title)
     fig.update_layout(yaxis_title="AQI Units")
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_ts_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_ts_{hash(title) % 10000}")
 
 
 # ── Chart 2: Pollutant Trend Comparison ───────────────────────────────────────
@@ -179,7 +179,7 @@ def render_pollutant_trend_comparison(
 
     _apply_dark_theme(fig, title)
     fig.update_layout(yaxis_title="Concentration (µg/m³)")
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_pollutants_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_pollutants_{hash(title) % 10000}")
 
 
 # ── Chart 3: AQI Category Distribution ────────────────────────────────────────
@@ -239,7 +239,7 @@ def render_aqi_category_distribution(
         yaxis_title="Station Count",
         margin=dict(l=40, r=20, t=50, b=40),
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_cat_dist_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_cat_dist_{hash(title) % 10000}")
 
 
 # ── Chart 4: Daily HCHO Trend ─────────────────────────────────────────────────
@@ -285,20 +285,20 @@ def render_daily_hcho_trend(df: pd.DataFrame, title: str = "HCHO Column Density 
 
     _apply_dark_theme(fig, title)
     fig.update_layout(yaxis_title="Density (×10¹⁵ molecules/cm²)")
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_hcho_trend_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_hcho_trend_{hash(title) % 10000}")
 
 
 # ── Chart 5: Forecast Line Chart (with Confidence Intervals) ──────────────────
 
 def render_forecast_line_chart(forecast_steps: list[Any], title: str = "72-Hour AQI Forecast") -> None:
     """
-    Render forecast line with shaded 95% confidence interval bounds and horizontal category bands.
+    Render forecast line with a shaded uncertainty band (lower/upper bounds) and category bands.
     Expects a list of ForecastStep objects.
     """
     if not forecast_steps:
         render_no_data(
             title="Forecast Data Unavailable",
-            message="No ML forecast predictions returned for this station.",
+            message="No forecast returned for this station (is the backend running?).",
             icon="📈",
         )
         return
@@ -344,8 +344,8 @@ def render_forecast_line_chart(forecast_steps: list[Any], title: str = "72-Hour 
             fill="tonexty",
             fillcolor="rgba(0, 191, 165, 0.15)",  # Translucent teal-cyan
             line=dict(width=0),
-            name="95% Confidence Interval",
-            hovertemplate="95% CI Range: <b>%{y} - " + "</b><extra></extra>",  # Modified by hover unified
+            name="Uncertainty band",
+            hovertemplate="Band: <b>%{y} - " + "</b><extra></extra>",  # Modified by hover unified
         )
     )
 
@@ -383,7 +383,7 @@ def render_forecast_line_chart(forecast_steps: list[Any], title: str = "72-Hour 
     )
     # Adjust Y-axis scale to fit the data comfortably
     fig.update_yaxes(range=[0, max_forecast + 20])
-    st.plotly_chart(fig, use_container_width=True, key="plotly_aqi_forecast")
+    st.plotly_chart(fig, width="stretch", key="plotly_aqi_forecast")
 
 
 # ── Chart 6: Fire Count & FRP Timeline ────────────────────────────────────────
@@ -467,7 +467,7 @@ def render_fire_count_timeline(fire_events: list[Any], title: str = "Active Fire
         ),
         legend=dict(y=-0.2),
     )
-    st.plotly_chart(fig, use_container_width=True, key="plotly_fire_timeline")
+    st.plotly_chart(fig, width="stretch", key="plotly_fire_timeline")
 
 
 # ── Chart 7: Source Attribution Donut ─────────────────────────────────────────
@@ -515,7 +515,7 @@ def render_source_attribution_donut(attribution: dict[str, float], title: str = 
         showlegend=True,
         margin=dict(l=20, r=20, t=50, b=20),
     )
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_donut_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_donut_{hash(title) % 10000}")
 
 
 # ── Chart 8: SHAP Waterfall Chart ────────────────────────────────────────────
@@ -601,4 +601,4 @@ def render_shap_waterfall_chart(
         margin=dict(l=40, r=20, t=60, b=60),
     )
     fig.update_xaxes(tickangle=-30)
-    st.plotly_chart(fig, use_container_width=True, key=f"plotly_shap_{hash(title) % 10000}")
+    st.plotly_chart(fig, width="stretch", key=f"plotly_shap_{hash(title) % 10000}")

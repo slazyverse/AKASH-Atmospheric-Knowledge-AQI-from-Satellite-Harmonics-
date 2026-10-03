@@ -1,22 +1,29 @@
 # VAYU-DRISHTI Dashboard — Python Dependencies
 #
-# Pinned for reproducible builds. Compatible with the backend's Python >=3.11.
-# Dashboard dependencies are intentionally separate from backend/requirements.txt
-# so the dashboard can be deployed independently (e.g., Streamlit Cloud).
+# Pinned (==) to the versions the dashboard was verified with, for reproducible
+# builds. Requires Python >=3.11 (pandas 3.x). Dashboard dependencies are
+# intentionally separate from backend/requirements.txt so the dashboard can be
+# deployed independently (e.g., Streamlit Cloud).
 #
 # Dependency justifications:
-#   streamlit       — Interactive data dashboard framework
+#   streamlit       — Interactive data dashboard framework (>=1.46 needed for width="stretch")
 #   pyyaml          — Parse PROJECT_CONFIG.yaml from the repo root
-#   requests        — HTTP client for future backend API consumption (Day 3+)
+#   requests        — HTTP client for backend API consumption
 #   pandas          — Tabular data manipulation for AQI readings and time series
-#   plotly          — Interactive charts (AQI trends, forecast bands, HCHO heatmaps)
-#   python-dotenv   — Load .env for DASHBOARD_API_URL in local development
+#   numpy           — Simulated demo trend generation (imported directly by pages)
+#   plotly          — Interactive charts (AQI trends, forecast bands, HCHO trends)
+#   python-dotenv   — Load dashboard/.env (VAYU_API_URL) in local development
+#   folium          — Leaflet maps (stations, hotspots, fires)
+#   branca          — Map legend HTML elements (imported directly by components/map.py)
+#   streamlit-folium — Render folium maps inside Streamlit
 
-streamlit>=1.35.0
-pyyaml>=6.0.1
-requests>=2.32.3
-pandas>=2.2.2
-plotly>=5.22.0
-python-dotenv>=1.0.1
-folium>=0.20.0
-streamlit-folium>=0.27.2
+streamlit==1.56.0
+pyyaml==6.0.3
+requests==2.34.2
+pandas==3.0.3
+numpy==2.5.1
+plotly==6.8.0
+python-dotenv==1.0.1
+folium==0.20.0
+branca==0.8.2
+streamlit-folium==0.27.2

@@ -1,14 +1,14 @@
 """
 backend/app/schemas/forecast.py — Pydantic v2 response models for AQI Forecast data.
 
-The VAYU-DRISHTI ML pipeline produces multi-step ahead AQI forecasts using
-an XGBoost ensemble trained on CPCB sensor readings, meteorological data
-(MERRA-2), and satellite HCHO/fire inputs.
-
 Forecast output includes:
-  - Per-step AQI predictions with 5th/95th percentile confidence intervals
-  - Model performance metrics (RMSE, MAE, R²) from the last validation run
-  - Feature importances (global, across all training predictions)
+  - Per-step AQI predictions with lower / upper uncertainty bounds
+  - Model performance metrics (RMSE, MAE, R²) from the model's validation run
+  - Feature importances (global)
+
+Current state: no forecasting model exists. The service returns a simulated
+baseline, so metric fields are null and feature_importances is empty rather
+than showing invented numbers.
 
 Models:
   - ForecastStep         — single time step in a forecast sequence
@@ -28,9 +28,8 @@ class ForecastStep(BaseModel):
     """
     A single time step in the AQI forecast sequence.
 
-    Confidence intervals are calibrated quantiles from the XGBoost
-    quantile regression variant, not ± stddev — they are asymmetric
-    when the predicted distribution is skewed (e.g., severe episodes).
+    While the simulated baseline is active, the bounds are an illustrative
+    band that widens with horizon — they are not calibrated quantiles.
     """
 
     forecast_at: datetime = Field(
@@ -38,15 +37,15 @@ class ForecastStep(BaseModel):
     )
     predicted_aqi: float = Field(
         ge=0,
-        description="Point forecast — the 50th percentile (median) AQI prediction.",
+        description="Point forecast of AQI for this step.",
     )
     lower_bound: float = Field(
         ge=0,
-        description="5th percentile (lower) confidence bound.",
+        description="Lower uncertainty bound (illustrative while simulated).",
     )
     upper_bound: float = Field(
         ge=0,
-        description="95th percentile (upper) confidence bound.",
+        description="Upper uncertainty bound (illustrative while simulated).",
     )
     aqi_category: str = Field(
         description=(
@@ -70,42 +69,51 @@ class ForecastStep(BaseModel):
 
 class ModelMetrics(BaseModel):
     """
-    Validation metrics for the currently deployed forecast model.
+    Validation metrics for the forecast model.
 
-    Metrics are computed on a held-out validation set (last 30 days)
-    using hourly AQI readings across all active stations.
+    Metric fields are null while the forecast is the simulated baseline (it has
+    no validation run), so clients must handle None.
     """
 
-    model_name: str = Field(description="Model architecture name.", examples=["VAYU-DRISHTI XGBoost v1"])
-    model_version: str = Field(description="Semantic version of the model artefact.", examples=["1.0.0"])
-    rmse: float = Field(ge=0, description="Root Mean Squared Error in AQI units.")
-    mae: float  = Field(ge=0, description="Mean Absolute Error in AQI units.")
-    r_squared: float = Field(
-        ge=-1,
-        le=1,
-        description="Coefficient of determination (R²). 1.0 = perfect fit.",
+    model_name: str = Field(
+        description="Model name.",
+        examples=["Simulated baseline (no forecasting model)"],
     )
-    training_date: str = Field(description="ISO date when the model was last retrained.")
-    validation_period: str = Field(description="Human-readable description of the validation window.")
+    model_version: str = Field(description="Version of the model artefact.", examples=["stub"])
+    rmse: float | None = Field(
+        default=None, ge=0, description="Root Mean Squared Error in AQI units."
+    )
+    mae: float | None = Field(default=None, ge=0, description="Mean Absolute Error in AQI units.")
+    r_squared: float | None = Field(
+        default=None,
+        le=1,
+        description="Coefficient of determination (R²) on the validation set.",
+    )
+    training_date: str | None = Field(
+        default=None, description="ISO date when the model was trained."
+    )
+    validation_period: str | None = Field(
+        default=None, description="Description of the validation window."
+    )
 
     model_config = {
         "protected_namespaces": (),
         "json_schema_extra": {
             "example": {
-                "model_name": "VAYU-DRISHTI XGBoost v1",
-                "model_version": "1.0.0",
-                "rmse": 18.4,
-                "mae": 12.7,
-                "r_squared": 0.84,
-                "training_date": "2026-06-01",
-                "validation_period": "2026-06-01 to 2026-06-30",
+                "model_name": "Simulated baseline (no forecasting model)",
+                "model_version": "stub",
+                "rmse": None,
+                "mae": None,
+                "r_squared": None,
+                "training_date": None,
+                "validation_period": None,
             }
         }
     }
 
 
 class FeatureImportance(BaseModel):
-    """Feature importance score from the XGBoost model."""
+    """Feature importance score from the trained forecast model."""
 
     feature: str = Field(description="Feature name.", examples=["PM2.5 (t-1)"])
     importance: float = Field(
@@ -148,13 +156,13 @@ class ForecastResponse(BaseModel):
                 "generated_at": "2026-07-07T12:00:00Z",
                 "steps": [],
                 "model_metrics": {
-                    "model_name": "VAYU-DRISHTI XGBoost v1",
-                    "model_version": "1.0.0",
-                    "rmse": 18.4,
-                    "mae": 12.7,
-                    "r_squared": 0.84,
-                    "training_date": "2026-06-01",
-                    "validation_period": "2026-06-01 to 2026-06-30",
+                    "model_name": "Simulated baseline (no forecasting model)",
+                    "model_version": "stub",
+                    "rmse": None,
+                    "mae": None,
+                    "r_squared": None,
+                    "training_date": None,
+                    "validation_period": None,
                 },
                 "feature_importances": [],
             }

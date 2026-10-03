@@ -37,8 +37,8 @@ def render() -> None:
     )
 
     render_info_notice(
-        "Report generation requires live API (Day 3). "
-        "Currently displaying stub report list and templates."
+        "Placeholder: report generation is not implemented yet. "
+        "The report list and templates below are hardcoded examples."
     )
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -105,7 +105,7 @@ def _render_report_list() -> None:
         for r in reports
     ]
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
@@ -144,7 +144,7 @@ def _render_generate_form() -> None:
     )
     st.selectbox("📁 Output Format", ["PDF", "CSV", "JSON"], key="report_format")
 
-    if st.button("⚙️ Generate Report", key="btn_generate_report", use_container_width=False):
+    if st.button("⚙️ Generate Report", key="btn_generate_report", width="content"):
         result = report_service.generate_report(
             template_id=template_options[selected_name],
         )

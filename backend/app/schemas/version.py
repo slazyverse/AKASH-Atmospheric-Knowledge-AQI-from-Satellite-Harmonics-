@@ -21,6 +21,13 @@ class VersionResponse(BaseModel):
         description="Deployment environment (development | staging | production)."
     )
     python_version: str = Field(description="Python runtime version string.")
+    data_sources: dict[str, str] = Field(
+        default_factory=dict,
+        description=(
+            "Which source backs each domain: 'demo', 'dataset:<file>', 'hotspot_file', "
+            "'simulated', 'artifact:<dir>' or 'none'. Lets clients label demo vs real data."
+        ),
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -30,6 +37,10 @@ class VersionResponse(BaseModel):
                 "api_version": "v1",
                 "environment": "development",
                 "python_version": "3.11.9",
+                "data_sources": {
+                    "stations": "demo", "aqi": "demo", "hcho": "demo",
+                    "fire": "demo", "forecast": "simulated", "model": "none",
+                },
             }
         }
     }

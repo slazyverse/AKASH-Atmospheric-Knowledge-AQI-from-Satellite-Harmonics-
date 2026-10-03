@@ -33,7 +33,10 @@ class HCHOHotspotItem(BaseModel):
 
     Column density is reported in units of 10¹⁵ molecules/cm²
     (the conventional scientific unit for tropospheric HCHO columns).
-    Values above ~8×10¹⁵ mol/cm² are considered elevated above background.
+    Values above ~8×10¹⁵ molecules/cm² are considered elevated above background.
+
+    radius_km, confidence and detected_at are null when the hotspot source does
+    not provide them (the team's cluster_summary.json has none of the three).
     """
 
     hotspot_id: str = Field(
@@ -42,9 +45,10 @@ class HCHOHotspotItem(BaseModel):
     )
     latitude: Latitude
     longitude: Longitude
-    radius_km: float = Field(
+    radius_km: float | None = Field(
+        default=None,
         ge=0,
-        description="Approximate radius of the hotspot in kilometres.",
+        description="Approximate radius of the hotspot in kilometres (null if not provided).",
     )
     column_density: float = Field(
         ge=0,
@@ -57,13 +61,15 @@ class HCHOHotspotItem(BaseModel):
         ),
         examples=["industrial"],
     )
-    confidence: float = Field(
+    confidence: float | None = Field(
+        default=None,
         ge=0.0,
         le=1.0,
-        description="Detection confidence score between 0.0 and 1.0.",
+        description="Detection confidence score between 0.0 and 1.0 (null if not scored).",
     )
-    detected_at: datetime = Field(
-        description="UTC timestamp of the TROPOMI overpass that detected this hotspot.",
+    detected_at: datetime | None = Field(
+        default=None,
+        description="UTC timestamp of the observation behind this hotspot (null if unknown).",
     )
 
     model_config = {
@@ -91,7 +97,11 @@ class HCHOHotspotsResponse(BaseModel):
     """
 
     count: int = Field(ge=0, description="Number of hotspots returned after filtering.")
-    query_date: date = Field(description="The TROPOMI observation date queried.")
+    query_date: date | None = Field(
+        default=None,
+        description="Observation date queried (null when the latest snapshot was requested "
+        "and the source carries no date).",
+    )
     min_confidence: float = Field(
         ge=0.0,
         le=1.0,

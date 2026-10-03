@@ -32,7 +32,7 @@ def render() -> None:
     """Render the Fire Monitoring module page."""
     render_page_header(
         module_name="Fire Monitoring",
-        subtitle="Active fire detections with Fire Radiative Power from MODIS/VIIRS",
+        subtitle="Fire detections with Fire Radiative Power — currently static demo data, not live MODIS/VIIRS",
         show_refresh_button=True,
     )
 
@@ -49,8 +49,9 @@ def render() -> None:
     # ── Single Data Fetch (Performance Optimization) ──────────────────────────
     min_frp = st.session_state.get("fire_min_frp", 10.0)
     satellite_filter = st.session_state.get("fire_satellite", "All")
-    
-    all_fires = fire_service.get_active_fires(min_frp=min_frp)
+    region = st.session_state.get("fire_region", "All India")
+
+    all_fires = fire_service.get_active_fires(min_frp=min_frp, region=region)
     if satellite_filter != "All":
         fires = [f for f in all_fires if f.satellite == satellite_filter]
     else:
@@ -121,7 +122,11 @@ def _render_active_alerts() -> None:
 def _render_filters() -> None:
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.selectbox("🌍 Region", ["All India", "North", "South", "East", "West", "Northeast"], key="fire_region")
+        st.selectbox(
+            "🌍 Region",
+            ["All India", "North", "Central", "East", "Northeast", "West", "South"],
+            key="fire_region",
+        )
     with c2:
         st.selectbox("🛰️ Satellite", ["All", "MODIS", "VIIRS-SNPP", "VIIRS-NOAA20"], key="fire_satellite")
     with c3:
@@ -158,4 +163,4 @@ def _render_fire_table(fires: list[Any]) -> None:
         }
         for f in fires
     ]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
