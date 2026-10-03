@@ -33,3 +33,59 @@ data_collection_pipeline/metadata/
 # Production validation outputs
 production_validation/
 
+feature_correlation.csv
+feature_ranking.csv
+feature_selection_report.md
+
+model_comparison.csv
+model_ranking.csv
+model_comparison_report.md
+
+# Cross validation outputs
+cross_validation_results.csv
+cross_validation_summary.json
+cross_validation_report.md
+
+# Hyperparameter optimization outputs
+optimization_results.csv
+best_model_parameters.json
+optimization_report.md
+
+# Production model outputs
+production_model_summary.json
+production_model_report.md
+
+# Explainability outputs
+feature_importance_detailed.csv
+local_feature_explanations.csv
+model_explainability_report.md
+
+
+
+# Production model artifact
+production_model.joblib
+
+# Error analysis outputs
+residual_analysis.csv
+error_metrics.json
+error_analysis_report.md
+
+# Baseline validation outputs
+baseline_feature_validation_report.md
+
+# Placeholder diagnostics outputs
+placeholder_merge_validation_report.md
+
+# Target validation outputs
+target_column_validation_report.md
+
+# Feature lineage reports
+feature_lineage_report.md
+feature_availability_manifest.csv
+
+# ERA5 validation outputs
+era5_pipeline_validation_report.md
+
+# Upstream validation outputs
+upstream_data_generation_report.md
+upstream_operational_validation_report.md
