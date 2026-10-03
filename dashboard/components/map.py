@@ -8,8 +8,9 @@ Implements folium-based mapping components for:
   - Forecast station coverage
 
 All maps support CartoDB DarkMatter, OpenStreetMap, and Esri World Imagery tiles,
-with coordinate display via plugins.MousePosition. The raster overlay toggles are
-PLACEHOLDERS: no AQI/HCHO/fire raster exists yet, so they point at unrelated tiles.
+with coordinate display via plugins.MousePosition. Raster overlays are added only
+when a real tile source is configured (see dashboard/core/gis_interfaces.py);
+none exists today, so no raster layer is shown.
 """
 
 from __future__ import annotations
@@ -23,9 +24,10 @@ from branca.element import Element
 from streamlit_folium import st_folium
 
 from dashboard.core.gis_interfaces import (
-    AQIRasterInterface,
-    HCHORasterInterface,
-    FireRasterInterface,
+    AQI_RASTER,
+    FIRE_RASTER,
+    HCHO_RASTER,
+    RasterLayerSource,
 )
 from dashboard.core.theme import (
     AQI_GOOD,
@@ -46,6 +48,22 @@ from dashboard.core.theme import (
 def _val(value: Any, unit: str = "") -> str:
     """Popup-safe value: '—' for missing data (never a placeholder number)."""
     return "—" if value is None else f"{value}{unit}"
+
+
+def _add_raster_layer(m: folium.Map, source: RasterLayerSource, opacity: float) -> None:
+    """Add a raster overlay only if a real tile source is configured (never a placeholder)."""
+    tile_url = source.tile_url(datetime.utcnow())
+    if tile_url is None:
+        return
+    folium.raster_layers.TileLayer(
+        tiles=tile_url,
+        attr=source.attribution,
+        name=source.display_name,
+        overlay=True,
+        control=True,
+        opacity=opacity,
+        show=False,
+    ).add_to(m)
 
 
 def _get_cpcb_color(category: str) -> str:
@@ -132,12 +150,12 @@ def create_base_map(
 def render_aqi_spatial_map(readings: list[Any], key: str = "aqi_map") -> None:
     """
     Render a map showing monitoring stations as markers colored by their AQI categories.
-    Includes popup cards and a placeholder layer for future satellite raster overlays.
+    Includes popup cards; a raster overlay is added only if a real tile source exists.
     """
     m = create_base_map(center=[22.8, 79.0], zoom=5)
 
     # 1. Concrete GIS Overlay Layer Group for Stations
-    station_group = folium.FeatureGroup(name="CPCB Ground Stations", overlay=True, control=True)
+    station_group = folium.FeatureGroup(name="Monitoring stations", overlay=True, control=True)
 
     for r in readings:
         color = _get_cpcb_color(r.aqi_category)
@@ -207,18 +225,8 @@ def render_aqi_spatial_map(readings: list[Any], key: str = "aqi_map") -> None:
         bounds = [[r.latitude, r.longitude] for r in readings]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # 2. Raster overlay slot — PLACEHOLDER (no AQI interpolation exists yet)
-    aqi_raster = AQIRasterInterface()
-    tile_url = aqi_raster.get_tile_url(datetime.utcnow())
-    folium.raster_layers.TileLayer(
-        tiles=tile_url,
-        attr="Placeholder tiles — not AQI data",
-        name="AQI raster — placeholder (not implemented)",
-        overlay=True,
-        control=True,
-        opacity=0.6,
-        show=False,  # Hidden by default, toggled via Leaflet controls
-    ).add_to(m)
+    # 2. Raster overlay — only when a real tile source is configured
+    _add_raster_layer(m, AQI_RASTER, opacity=0.6)
 
     # 3. Add Floating AQI Legend
     _add_aqi_legend_element(m)
@@ -261,12 +269,12 @@ def _add_aqi_legend_element(m: folium.Map) -> None:
 def render_hcho_spatial_map(hotspots: list[Any], key: str = "hcho_map") -> None:
     """
     Render a map displaying formaldehyde hotspots as circles sized by radius_km.
-    Includes placeholder layers for both satellite density COG and interactive HeatMap.
+    Adds a heatmap of the same clusters; a raster overlay only if a real tile source exists.
     """
     m = create_base_map(center=[21.0, 81.0], zoom=5)
 
     # 1. Hotspot circles overlay
-    hotspot_group = folium.FeatureGroup(name="Detected Hotspots (Sentinel-5P)", overlay=True, control=True)
+    hotspot_group = folium.FeatureGroup(name="HCHO hotspot clusters", overlay=True, control=True)
 
     for h in hotspots:
         # Style details card
@@ -316,25 +324,14 @@ def render_hcho_spatial_map(hotspots: list[Any], key: str = "hcho_map") -> None:
         bounds = [[h.latitude, h.longitude] for h in hotspots]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # 2. Raster overlay slot — PLACEHOLDER (no HCHO raster exists yet)
-    hcho_raster = HCHORasterInterface()
-    tile_url = hcho_raster.get_tile_url(datetime.utcnow())
-    folium.raster_layers.TileLayer(
-        tiles=tile_url,
-        attr="Placeholder tiles — not HCHO data",
-        name="HCHO raster — placeholder (not implemented)",
-        overlay=True,
-        control=True,
-        opacity=0.55,
-        show=False,
-    ).add_to(m)
+    # 2. Raster overlay — only when a real tile source is configured
+    _add_raster_layer(m, HCHO_RASTER, opacity=0.55)
 
-    # 3. Dynamic HeatMap Layer (Placeholder)
-    # Day 5 can fill this with a real folium.plugins.HeatMap from active density grid points
+    # 3. Heatmap of the served hotspot clusters (same data as the circles)
     if hotspots:
         plugins.HeatMap(
             data=[[h.latitude, h.longitude, h.column_density] for h in hotspots],
-            name="HCHO heatmap of demo hotspots",
+            name="HCHO cluster heatmap",
             min_opacity=0.2,
             radius=25,
             blur=15,
@@ -382,7 +379,7 @@ def render_fire_spatial_map(fires: list[Any], key: str = "fire_map") -> None:
     """
     m = create_base_map(center=[22.0, 80.0], zoom=5)
 
-    fire_group = folium.FeatureGroup(name="MODIS/VIIRS Active Fires", overlay=True, control=True)
+    fire_group = folium.FeatureGroup(name="Fire detections", overlay=True, control=True)
 
     for f in fires:
         # Scaled radius: map FRP to a reasonable pixel radius range (e.g., 5 to 20 pixels)
@@ -439,18 +436,8 @@ def render_fire_spatial_map(fires: list[Any], key: str = "fire_map") -> None:
         bounds = [[f.latitude, f.longitude] for f in fires]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # Raster overlay slot — PLACEHOLDER (no fire raster exists yet)
-    fire_raster = FireRasterInterface()
-    tile_url = fire_raster.get_tile_url(datetime.utcnow())
-    folium.raster_layers.TileLayer(
-        tiles=tile_url,
-        attr="Placeholder tiles — not fire data",
-        name="Fire raster — placeholder (not implemented)",
-        overlay=True,
-        control=True,
-        opacity=0.6,
-        show=False,
-    ).add_to(m)
+    # Raster overlay — only when a real tile source is configured
+    _add_raster_layer(m, FIRE_RASTER, opacity=0.6)
 
     # Floating Fire Intensity Legend
     _add_fire_legend_element(m)
@@ -487,12 +474,12 @@ def _add_fire_legend_element(m: folium.Map) -> None:
 
 def render_forecast_coverage_map(readings: list[Any], key: str = "forecast_map") -> None:
     """
-    Render the forecastable stations, colored by their latest (demo) AQI category.
+    Render the forecastable stations, colored by their latest AQI category.
     Popups show the latest reading only; the forecast itself is on the chart.
     """
     m = create_base_map(center=[22.8, 79.0], zoom=5)
 
-    forecast_group = folium.FeatureGroup(name="Forecast Station Indicators", overlay=True, control=True)
+    forecast_group = folium.FeatureGroup(name="Stations (latest reading)", overlay=True, control=True)
 
     for r in readings:
         color = _get_cpcb_color(r.aqi_category)
@@ -512,7 +499,7 @@ def render_forecast_coverage_map(readings: list[Any], key: str = "forecast_map")
                 <b>Latest AQI:</b> <span style="color:{color}; font-weight:bold;">{r.aqi_value}</span> ({r.aqi_category})
             </div>
             <div style="font-size:9px; color:{TEXT_SECONDARY}; text-align:right;">
-                Demo data · forecast shown in the chart (simulated)
+                Latest observation · forecast shown in the chart (simulated)
             </div>
         </div>
         """

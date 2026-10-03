@@ -23,7 +23,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.core.logging import get_logger
-from app.schemas.hcho import HCHOHotspotsResponse
+from app.schemas.hcho import HCHOHotspotsResponse, HCHOTrendResponse
 from app.services.hcho_service import HCHOService, hcho_service
 
 logger = get_logger(__name__)
@@ -42,11 +42,11 @@ router = APIRouter()
         "Use `min_confidence` to filter by detection quality — 0.6 is recommended for "
         "operational use; lower values expose uncertain detections for research. "
         "Column density is reported in units of **10¹⁵ molecules/cm²**. "
-        "Data source: the team's hotspot clusters (`cluster_summary.json`) when "
-        "`HCHO_HOTSPOTS_PATH` is configured — radius, confidence and date are null there "
-        "and unscored clusters are not removed by `min_confidence`; otherwise a static demo "
-        "snapshot (today only) with illustrative source_type / confidence. "
-        "`GET /api/v1/version` reports which source is active. Dates without data return 404."
+        "Data source: hotspot clusters in the `cluster_summary.json` contract — team output "
+        "when available, otherwise the bundled placeholder fixture (see GET /api/v1/sources). "
+        "That contract has no radius, confidence, source attribution or date, so those fields "
+        "are null / 'unknown' and unscored clusters are not removed by `min_confidence`. "
+        "Dates without data return 404."
     ),
     tags=["hcho"],
     responses={
@@ -67,7 +67,7 @@ async def get_hcho_hotspots(
         alias="date",
         description=(
             "TROPOMI observation date in ISO 8601 format (YYYY-MM-DD). "
-            "Omit for the latest snapshot (today UTC for demo data)."
+            "Omit for the latest snapshot."
         ),
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
@@ -117,3 +117,23 @@ async def get_hcho_hotspots(
         )
 
     return result
+
+
+@router.get(
+    "/hcho/trend",
+    response_model=HCHOTrendResponse,
+    summary="Station-Collocated HCHO Trend",
+    description=(
+        "Daily mean of the satellite HCHO column sampled at the station dataset's stations "
+        "(10¹⁵ molecules/cm²), over the last `days` days of the source. Derived from the "
+        "resolved station dataset (team output or placeholder — see GET /api/v1/sources); "
+        "an empty `points` list means the source has no HCHO values."
+    ),
+    tags=["hcho"],
+)
+async def get_hcho_trend(
+    days: int = Query(default=30, ge=1, le=366, description="Window length in days."),
+    service: HCHOService = Depends(lambda: hcho_service),
+) -> HCHOTrendResponse:
+    """Return the daily station-collocated HCHO mean from the HCHO service."""
+    return service.get_trend(days=days)

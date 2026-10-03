@@ -1,142 +1,117 @@
 """
-dashboard/pages/hcho_hotspots.py — HCHO Hotspot Detection module page.
+dashboard/pages/hcho_hotspots.py — HCHO Hotspots module page.
 
-Displays formaldehyde (HCHO) hotspots from the backend (currently static demo data).
-The monthly trend chart is SIMULATED and the source attribution is illustrative.
+Displays HCHO hotspot clusters (team cluster_summary.json or its labelled
+placeholder) and the daily station-collocated HCHO mean from the station
+dataset. Source attribution, radius and confidence are not produced by any
+team output, so they are shown as unavailable — never invented.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
 from typing import Any
+
 import pandas as pd
 import streamlit as st
 
 from dashboard.components import (
-    render_hcho_spatial_map,
-    render_source_attribution_donut,
     render_daily_hcho_trend,
+    render_hcho_spatial_map,
     render_info_notice,
-    render_inline_warning,
-    render_page_header,
-    render_page_footer,
     render_no_data,
-    render_stub_badge,
+    render_page_footer,
+    render_page_header,
+    render_source_badge,
 )
-from dashboard.core.theme import (
-    PRIMARY,
-    TEXT_MUTED,
-    TEXT_SECONDARY,
-)
+from dashboard.core.theme import PRIMARY, TEXT_SECONDARY
 from dashboard.services import hcho_service
-from dashboard.services.data_sources import is_team_data
-
-
-def _generate_mock_hcho_trends() -> pd.DataFrame:
-    """SIMULATED 12-month trend (seasonal sine + noise) — not real TROPOMI data."""
-    import numpy as np
-    dates = pd.date_range(end=datetime.utcnow(), periods=12, freq="ME")
-    rng = np.random.default_rng(88)
-    data = []
-    baseline = 11.2
-    for idx, dt in enumerate(dates):
-        # Seasonal peak in summer due to biogenic activity
-        seasonal = 2.4 * np.sin(2 * np.pi * (idx + 3) / 12)
-        density = max(1.0, baseline + seasonal + rng.normal(0, 0.6))
-        data.append({
-            "date": dt.strftime("%Y-%m"),
-            "column_density": density
-        })
-    return pd.DataFrame(data)
+from dashboard.services.data_sources import source_label
 
 
 def render() -> None:
     """Render the HCHO Hotspots module page."""
     render_page_header(
         module_name="HCHO Hotspots",
-        subtitle=(
-            "Formaldehyde (HCHO) hotspot clusters from the team's hotspot pipeline"
-            if is_team_data("hcho")
-            else "Formaldehyde (HCHO) hotspots — currently static demo data, not TROPOMI detections"
-        ),
+        subtitle=f"Formaldehyde (HCHO) hotspot clusters — source: {source_label('hcho')}",
         show_refresh_button=True,
     )
+    render_source_badge("hcho", "Hotspot clusters")
 
     # ── Filters ───────────────────────────────────────────────────────────────
     c1, c2, c3 = st.columns(3)
     with c1:
         st.selectbox(
-            "📅 Date", ["Today"], key="hcho_date", disabled=True,
-            help="Only the latest snapshot is available until historical data is integrated.",
+            "📅 Date", ["Latest snapshot"], key="hcho_date", disabled=True,
+            help="The hotspot contract carries no observation date; only the latest snapshot exists.",
         )
     with c2:
-        st.selectbox("🏭 Source Type", ["All", "Industrial", "Biogenic", "Biomass Burning", "Unknown"], key="hcho_source")
+        st.selectbox(
+            "🏭 Source Type", ["All", "Industrial", "Biogenic", "Biomass Burning", "Unknown"],
+            key="hcho_source",
+        )
     with c3:
-        st.slider("🎯 Min Confidence", 0.5, 1.0, 0.6, 0.05, key="hcho_confidence")
+        st.slider(
+            "🎯 Min Confidence", 0.5, 1.0, 0.6, 0.05, key="hcho_confidence",
+            help="Applies only to scored clusters; unscored clusters are always shown.",
+        )
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
     # ── Single Data Fetch ─────────────────────────────────────────────────────
     min_conf = st.session_state.get("hcho_confidence", 0.6)
     source_filter = st.session_state.get("hcho_source", "All")
-    
     all_hotspots = hcho_service.get_hotspots(min_confidence=min_conf)
-    if source_filter != "All":
-        hotspots = [h for h in all_hotspots if h.source_type.replace("_", " ").title() == source_filter]
-    else:
-        hotspots = all_hotspots
+    hotspots = (
+        all_hotspots if source_filter == "All"
+        else [h for h in all_hotspots if h.source_type.replace("_", " ").title() == source_filter]
+    )
 
-    # ── Hotspot summary metrics ────────────────────────────────────────────────
     _render_hotspot_metrics(hotspots)
 
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
-
-    # ── What is HCHO? ─────────────────────────────────────────────────────────
     _render_hcho_explainer()
-
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
 
     # ── Map & Attribution Grid ────────────────────────────────────────────────
     left, right = st.columns([3, 2])
-
     with left:
-        st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ HCHO Density Map</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ HCHO Hotspot Map</h4>", unsafe_allow_html=True)
         render_hcho_spatial_map(hotspots, key="hcho_spatial_map_widget")
-
     with right:
         st.markdown(f"<h4 style='color:{PRIMARY}'>📊 Source Attribution</h4>", unsafe_allow_html=True)
-        hotspot_ids = [h.hotspot_id for h in hotspots]
-        if hotspot_ids:
-            selected_hotspot = st.selectbox(
-                "Select Hotspot for Profile", 
-                hotspot_ids, 
-                key="hcho_attribution_select"
-            )
-            attribution_data = hcho_service.get_source_attribution(selected_hotspot)
-            render_stub_badge("Illustrative — same hardcoded split for every hotspot")
-            render_source_attribution_donut(attribution_data, title=f"Illustrative Source Attribution: {selected_hotspot}")
-        else:
-            render_no_data(
-                title="Attribution Unavailable",
-                message="Select different filter settings to display source breakdown.",
-            )
+        render_info_notice(
+            "Unavailable: no source-attribution output exists (the HCHO/NO₂ ratio "
+            "classification and HYSPLIT back-trajectories are not implemented). "
+            "Cluster source type is reported as 'unknown'."
+        )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ── Hotspot table ─────────────────────────────────────────────────────────
-    st.markdown(f"<h4 style='color:{PRIMARY}'>⚗️ Active Hotspot Details</h4>", unsafe_allow_html=True)
-    _render_hotspot_table(hotspots)
+    st.markdown(f"<h4 style='color:{PRIMARY}'>⚗️ Hotspot Cluster Details</h4>", unsafe_allow_html=True)
+    if hotspots:
+        _render_hotspot_table(hotspots)
+    else:
+        render_no_data(
+            title="No Hotspots",
+            message="No clusters match, or the hotspot source / backend is unavailable.",
+        )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
-    # ── Trend chart ───────────────────────────────────────────────────────────
-    st.markdown(f"<h4 style='color:{PRIMARY}'>📈 Monthly HCHO Trend</h4>", unsafe_allow_html=True)
-    render_inline_warning(
-        "This trend is SIMULATED (seasonal sine wave plus noise). It is not real "
-        "Sentinel-5P TROPOMI data; no HCHO time series is integrated yet."
+    # ── Station-collocated HCHO trend (from the station dataset) ──────────────
+    st.markdown(f"<h4 style='color:{PRIMARY}'>📈 HCHO at Stations — Daily Mean</h4>", unsafe_allow_html=True)
+    render_source_badge("aqi", "Trend source (station dataset)")
+    trend = hcho_service.get_trend(days=30)
+    trend_df = pd.DataFrame(
+        [{"date": p.obs_date, "column_density": p.mean_column_density} for p in trend]
     )
-    trend_df = _generate_mock_hcho_trends()
-    render_daily_hcho_trend(trend_df, title="Simulated 12-Month HCHO Trend (demo, India)")
+    render_daily_hcho_trend(trend_df, title="Daily mean satellite HCHO column at stations (×10¹⁵ molec/cm²)")
+    if trend:
+        st.caption(
+            f"{len(trend)} day(s); stations per day: {', '.join(str(p.station_count) for p in trend)}. "
+            "Satellite column sampled at station locations — not a gridded national mean."
+        )
 
     render_page_footer()
 
@@ -164,13 +139,15 @@ def _render_hcho_explainer() -> None:
 def _render_hotspot_metrics(hotspots: list[Any]) -> None:
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        st.metric("⚗️ Active Hotspots", str(len(hotspots)), "")
+        st.metric("⚗️ Hotspot Clusters", str(len(hotspots)))
     with c2:
-        avg_density = sum(h.column_density for h in hotspots) / max(len(hotspots), 1)
-        st.metric("📊 Avg Column Density", f"{avg_density:.1f}", "×10¹⁵ molec/cm²", delta_color="off")
+        avg_density = sum(h.column_density for h in hotspots) / len(hotspots) if hotspots else None
+        st.metric("📊 Avg Column Density", "N/A" if avg_density is None else f"{avg_density:.1f}",
+                  "×10¹⁵ molec/cm²", delta_color="off")
     with c3:
-        industrial = sum(1 for h in hotspots if h.source_type == "industrial")
-        st.metric("🏭 Industrial Sources", str(industrial), "")
+        known = [h for h in hotspots if h.source_type != "unknown"]
+        st.metric("🏭 Attributed Sources", str(len(known)) if known else "N/A",
+                  None if known else "not attributed by source", delta_color="off")
     with c4:
         scored = [h for h in hotspots if h.confidence is not None]
         if scored:
@@ -190,6 +167,7 @@ def _render_hotspot_table(hotspots: list[Any]) -> None:
             "Radius (km)": h.radius_km,
             "Source Type": h.source_type.replace("_", " ").title(),
             "Confidence": f"{h.confidence:.0%}" if h.confidence is not None else "not scored",
+            "Detected": h.detected_at.strftime("%Y-%m-%d") if h.detected_at else "no date in source",
         }
         for h in hotspots
     ]

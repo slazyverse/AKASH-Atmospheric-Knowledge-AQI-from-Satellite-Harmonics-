@@ -7,8 +7,8 @@ Use cases:
   - Post-deployment verification: confirm the correct version was deployed.
   - Canary analysis: compare two instances to verify gradual rollout.
   - Incident response: know immediately which build is affected.
-  - Data-source awareness: `data_sources` tells the dashboard which domains
-    serve demo data and which serve the team's dataset / model outputs.
+  - Data-source awareness: `data_sources` gives the compact source kind per
+    domain (full detail: GET /api/v1/sources).
 
 This endpoint has no side effects, requires no database access, and
 should be extremely low-latency (< 1 ms). It is safe to call frequently.

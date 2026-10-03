@@ -3,7 +3,8 @@ GET /api/v1/fire — Active Fire Monitoring endpoint.
 
 Returns active satellite-detected fire events and high-severity alerts
 within a configurable time window. The schema models MODIS (Terra/Aqua) and
-VIIRS (SNPP / NOAA-20) detections; the current data is a static demo set.
+VIIRS (SNPP / NOAA-20) detections from the resolved fire source (see
+app/services/fire_service.py); no team fire source exists yet.
 
 Design decisions:
   - Single endpoint returns BOTH events AND alerts in one payload,
@@ -41,10 +42,11 @@ router = APIRouter()
         "AQI impact at downwind monitoring stations is significant. "
         "The response combines events and alerts in a single payload to minimise "
         "client round-trips. Filter by `region`, by `min_frp` to focus on intense fires, "
-        "and by `hours` to narrow the observation window; alerts are limited to the "
-        "returned events. "
-        "**Current data is a static demo set (5 events, 2 alerts) — not real FIRMS "
-        "detections; alert impact scores are illustrative.**"
+        "and by `hours` (window ending at the source's latest detection, `as_of`). "
+        "Alerts follow a documented FRP rule (>= 200 MW critical, >= 100 MW high) for the "
+        "returned events; `aqi_impact_score` is always null (no impact model exists). "
+        "**No team fire source exists yet: without FIRE_EVENTS_PATH the data is a bundled "
+        "placeholder fixture, not real FIRMS detections** (see GET /api/v1/sources)."
     ),
     tags=["fire"],
     responses={

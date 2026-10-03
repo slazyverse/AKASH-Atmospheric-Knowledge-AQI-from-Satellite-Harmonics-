@@ -16,6 +16,7 @@ from dashboard.components import (
     render_fire_count_timeline,
     render_info_notice,
     render_page_header,
+    render_source_badge,
     render_page_footer,
 )
 from dashboard.core.theme import (
@@ -26,17 +27,19 @@ from dashboard.core.theme import (
     TEXT_SECONDARY,
 )
 from dashboard.services import fire_service
+from dashboard.services.data_sources import source_label
 
 
 def render() -> None:
     """Render the Fire Monitoring module page."""
     render_page_header(
         module_name="Fire Monitoring",
-        subtitle="Fire detections with Fire Radiative Power — currently static demo data, not live MODIS/VIIRS",
+        subtitle=f"Fire detections with Fire Radiative Power — source: {source_label('fire')}",
         show_refresh_button=True,
     )
 
     # ── Active Alerts ─────────────────────────────────────────────────────────
+    render_source_badge("fire", "Fire detections")
     _render_active_alerts()
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -109,7 +112,9 @@ def _render_active_alerts() -> None:
                   </div>
                   <div style="font-size:0.8rem;color:{TEXT_SECONDARY}">{alert.message}</div>
                   <div style="font-size:0.72rem;color:{TEXT_MUTED};margin-top:4px">
-                    Predicted AQI impact: <strong style="color:{ACCENT_ORANGE}">+{alert.aqi_impact_score:.0f}</strong> units
+                    Rule: FRP ≥ {200 if alert.severity == "critical" else 100} MW ·
+                    AQI impact: {"not estimated (no impact model)" if alert.aqi_impact_score is None
+                                 else f"+{alert.aqi_impact_score:.0f}"}
                   </div>
                 </div>
               </div>

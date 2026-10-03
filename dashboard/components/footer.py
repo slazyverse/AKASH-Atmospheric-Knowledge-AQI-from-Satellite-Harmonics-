@@ -38,12 +38,12 @@ def render_page_footer(show_data_sources: bool = True) -> None:
 
 
 def _render_data_sources() -> None:
-    """Render the satellite data source attribution block."""
+    """Render the team pipeline's input sources (what each page serves: see its source badge)."""
     sources = [
-        ("🛰️ Sentinel-5P", "TROPOMI — HCHO & NO₂"),
-        ("🌍 MODIS/VIIRS",  "Fire Radiative Power"),
-        ("📡 MERRA-2",      "Reanalysis meteorology"),
-        ("🏭 CPCB",         "Ground-truth AQI sensors"),
+        ("🛰️ Sentinel-5P", "TROPOMI — HCHO, NO₂, CO, O₃ columns"),
+        ("🌍 MODIS",        "Aerosol optical depth"),
+        ("📡 ERA5",         "Reanalysis meteorology"),
+        ("🏭 CPCB",         "Ground AQI stations"),
     ]
 
     cols = st.columns(len(sources))
@@ -81,7 +81,7 @@ def _render_footer_bar() -> None:
               v{dashboard_config.app_version} ·
               <span style="background:#21262D;border-radius:4px;
                            padding:1px 6px;font-size:0.65rem">
-                Sprint: Day 2 — Dashboard Skeleton
+                Pipeline inputs listed above; each page's source badge shows what is served
               </span>
               <br>
               <span style="margin-top:4px;display:inline-block">

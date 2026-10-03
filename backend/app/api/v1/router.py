@@ -12,20 +12,23 @@ individual endpoint modules free of URL path concerns.
 Current v1 endpoints:
   GET /api/v1/health        — Service health check (observability)
   GET /api/v1/version       — Application version metadata (observability)
-  GET /api/v1/aqi/daily     — Surface AQI daily summary + station readings (dataset or demo)
-  GET /api/v1/hcho/hotspots — HCHO concentration hotspots (hotspot file or demo)
-  GET /api/v1/fire          — Active fire detections + alerts (demo data)
+  GET /api/v1/sources       — Source status per domain (observability)
+  GET /api/v1/aqi/daily     — Surface AQI daily summary + station readings
+  GET /api/v1/aqi/history   — One station's observation history
+  GET /api/v1/hcho/hotspots — HCHO hotspot clusters
+  GET /api/v1/hcho/trend    — Daily station-collocated HCHO mean
+  GET /api/v1/fire          — Fire detections + FRP-rule alerts
   GET /api/v1/forecast      — Up-to-72-hour AQI forecast (simulated; no forecasting model)
-  GET /api/v1/stations      — Monitoring station registry (dataset or demo)
+  GET /api/v1/stations      — Monitoring station registry
   GET /api/v1/xai/global-importance — Trained-model metrics + importances (404 until loaded)
 
-  Domain endpoints switch from demo data to the team's outputs when
-  DATASET_PATH / HCHO_HOTSPOTS_PATH / ML_MODEL_PATH are configured.
+  Each domain is served from the source resolved in app/data/sources.py:
+  team output (local), bundled placeholder fixture, simulated or unavailable.
 """
 
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import health, version
+from app.api.v1.endpoints import health, sources, version
 from app.api.v1.endpoints import aqi, fire, forecast, hcho, stations, xai
 
 router = APIRouter()
@@ -33,6 +36,7 @@ router = APIRouter()
 # ── Day 1 — Observability ─────────────────────────────────────────────────────
 router.include_router(health.router)
 router.include_router(version.router)
+router.include_router(sources.router)
 
 # ── Day 3 — Domain Data Endpoints ─────────────────────────────────────────────
 router.include_router(aqi.router)

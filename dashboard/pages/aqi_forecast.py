@@ -18,11 +18,11 @@ from dashboard.components import (
     render_page_header,
     render_page_footer,
     render_no_data,
-    render_stub_badge,
+    render_source_badge,
 )
 from dashboard.core.theme import PRIMARY
 from dashboard.services import forecast_service, surface_aqi_service
-from dashboard.services.data_sources import is_team_data
+from dashboard.services.data_sources import source_label
 from dashboard.services.forecast_service import ModelMetrics
 
 _HORIZONS = {"24 hours": 24, "48 hours": 48, "72 hours": 72}
@@ -57,9 +57,16 @@ def render() -> None:
     # ── Single Data Fetch (one cached GET /forecast) ──────────────────────────
     forecast_steps = forecast_service.get_station_forecast(selected_id, horizon_hours)
     metrics = forecast_service.get_model_metrics(selected_id, horizon_hours)
+    info = forecast_service.get_forecast_info(selected_id, horizon_hours)
     readings = surface_aqi_service.get_latest_readings()
 
-    if metrics is not None and metrics.r_squared is None:
+    render_source_badge("forecast", "Forecast")
+    if info.get("based_on_observation_at"):
+        st.caption(
+            f"Seeded from the station observation at {info['based_on_observation_at'][:16]} UTC "
+            f"(station data: {source_label('aqi')})."
+        )
+    if info.get("forecast_kind", "simulated") == "simulated":
         render_info_notice(
             "Simulated forecast: no forecasting model is integrated yet. The curve is a "
             "deterministic diurnal baseline seeded from the station's latest AQI reading, "
@@ -90,8 +97,7 @@ def render() -> None:
 
     with right:
         st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ Station Coverage Map</h4>", unsafe_allow_html=True)
-        if not is_team_data("aqi"):
-            render_stub_badge()
+        render_source_badge("aqi", "Stations")
         render_forecast_coverage_map(readings, key="forecast_coverage_map_widget")
 
     render_page_footer()

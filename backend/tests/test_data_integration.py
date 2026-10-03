@@ -21,10 +21,13 @@ from httpx import AsyncClient
 
 from app.core.aqi import aqi_category
 from app.core.config import Settings
+from app.core.units import MOL_M2_TO_1E15_MOLEC_CM2
+from app.data import sources as sources_module
 from app.data.dataset import DatasetError, load_dataset
-from app.data.hotspots import MOL_M2_TO_1E15_MOLEC_CM2, HotspotFileError, load_hotspots
+from app.data.fires import FireFileError, load_fires
+from app.data.hotspots import HotspotFileError, load_hotspots
 from app.data.model_artifact import ModelArtifactError, load_model_artifact
-from app.data.sources import load_configured_sources, sources
+from app.data.sources import PLACEHOLDERS, load_configured_sources, sources
 
 pytestmark = pytest.mark.unit
 
@@ -119,9 +122,15 @@ def model_dir(tmp_path: Path) -> Path:
 
 @pytest.fixture(autouse=True)
 def _reset_sources():
+    # Start each test from an empty registry (conftest loads placeholders first).
     sources.reset()
     yield
     sources.reset()
+
+
+def _settings(**overrides: object) -> Settings:
+    """Deterministic settings: no .env, no repository auto-discovery."""
+    return Settings(_env_file=None, AUTO_DISCOVER_TEAM_OUTPUTS=False, **overrides)
 
 
 # ── Dataset loader ─────────────────────────────────────────────────────────────
@@ -259,26 +268,150 @@ class TestModelArtifactLoader:
 
 # ── Startup wiring ─────────────────────────────────────────────────────────────
 
-class TestConfiguredSources:
-    def test_nothing_configured_means_demo(self) -> None:
-        load_configured_sources(Settings(_env_file=None))
-        assert sources.describe()["stations"] == "demo"
-        assert sources.describe()["model"] == "none"
+class TestSourceResolution:
+    def test_nothing_configured_uses_placeholders(self) -> None:
+        load_configured_sources(_settings())
+        d = sources.describe()
+        assert d["aqi"] == "placeholder:placeholder_station_dataset.csv"
+        assert d["stations"] == "placeholder:placeholder_station_dataset.csv"
+        assert d["hcho"] == "placeholder:placeholder_hcho_clusters.json"
+        assert d["fire"] == "placeholder:placeholder_fire_events.json"
+        assert d["model"] == "unavailable"
+        assert d["forecast"] == "simulated"
+        assert d["xai_global"] == "unavailable"
+        assert d["xai_local"] == "unavailable"
+        assert d["spatial_rasters"] == "unavailable"
+        assert sources.model is None
 
-    def test_all_configured(self, v1_csv: Path, hotspot_json: Path, model_dir: Path) -> None:
-        load_configured_sources(Settings(
-            _env_file=None, DATASET_PATH=str(v1_csv), HCHO_HOTSPOTS_PATH=str(hotspot_json),
-            ML_MODEL_PATH=str(model_dir), ENABLE_ML_ENDPOINTS=True,
+    def test_placeholders_disabled_means_unavailable(self) -> None:
+        load_configured_sources(_settings(ENABLE_PLACEHOLDER_DATA=False))
+        for domain in ("aqi", "stations", "hcho", "fire", "forecast"):
+            assert sources.status(domain).kind == "unavailable"
+        assert sources.dataset is None and sources.hotspots is None and sources.fires is None
+
+    def test_explicit_paths_are_local(
+        self, v1_csv: Path, hotspot_json: Path, model_dir: Path, tmp_path: Path
+    ) -> None:
+        fires = tmp_path / "fires.json"
+        fires.write_text(PLACEHOLDERS["fire"].read_text(encoding="utf-8"), encoding="utf-8")
+        load_configured_sources(_settings(
+            DATASET_PATH=str(v1_csv), HCHO_HOTSPOTS_PATH=str(hotspot_json),
+            FIRE_EVENTS_PATH=str(fires), ML_MODEL_PATH=str(model_dir), ENABLE_ML_ENDPOINTS=True,
         ))
         d = sources.describe()
-        assert d["stations"] == "dataset:analysis_ready_dataset.csv"
-        assert d["hcho"] == "hotspot_file"
-        assert d["model"] == "artifact:lightgbm_run"
-        assert d["forecast"] == "simulated"
+        assert d["aqi"] == "local:analysis_ready_dataset.csv"
+        assert d["hcho"] == "local:cluster_summary.json"
+        assert d["fire"] == "local:fires.json"
+        assert d["model"] == "local:lightgbm_run"
+        assert d["xai_global"] == "local:lightgbm_run"
+        assert d["forecast"] == "simulated"  # a loaded estimator never becomes a forecaster
+        assert sources.status("stations").records == 3
+        assert sources.status("aqi").as_of == "2026-07-14"
+
+    def test_auto_discovered_team_output_is_used(
+        self, v1_csv: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "dataset", (v1_csv,))
+        load_configured_sources(Settings(_env_file=None))
+        status_ = sources.status("aqi")
+        assert (status_.kind, status_.name) == ("local", "analysis_ready_dataset.csv")
+        assert "auto-discovered" in status_.detail
+
+    def test_incompatible_discovered_output_falls_back_with_reason(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        bad = _write(tmp_path / "analysis_ready_dataset.csv", ["Station ID,AQI", "A,10"])
+        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "dataset", (bad,))
+        load_configured_sources(Settings(_env_file=None))
+        status_ = sources.status("aqi")
+        assert status_.kind == "placeholder"
+        assert "incompatible" in status_.detail and "missing required columns" in status_.detail
 
     def test_model_not_loaded_when_ml_disabled(self, model_dir: Path) -> None:
-        load_configured_sources(Settings(_env_file=None, ML_MODEL_PATH=str(model_dir)))
+        load_configured_sources(_settings(ML_MODEL_PATH=str(model_dir)))
         assert sources.model is None
+        assert "ENABLE_ML_ENDPOINTS" in sources.status("model").detail
+
+    @pytest.mark.parametrize(
+        ("setting", "error"),
+        [("DATASET_PATH", DatasetError), ("HCHO_HOTSPOTS_PATH", HotspotFileError),
+         ("FIRE_EVENTS_PATH", FireFileError)],
+    )
+    def test_invalid_explicit_path_raises(
+        self, tmp_path: Path, setting: str, error: type[Exception]
+    ) -> None:
+        with pytest.raises(error, match="not found"):
+            load_configured_sources(_settings(**{setting: str(tmp_path / "missing")}))
+
+    def test_invalid_model_path_raises(self, tmp_path: Path) -> None:
+        with pytest.raises(ModelArtifactError):
+            load_configured_sources(
+                _settings(ML_MODEL_PATH=str(tmp_path / "nope"), ENABLE_ML_ENDPOINTS=True)
+            )
+
+
+class TestPlaceholderFixtures:
+    """The bundled fixtures must satisfy the same contracts as the real sources."""
+
+    def test_station_fixture_matches_dataset_contract(self) -> None:
+        ds = load_dataset(PLACEHOLDERS["dataset"])
+        assert len(ds) == 56 and len(ds.latest_per_station()) == 8
+        assert ds.latest_date == date(2026, 7, 14)
+        # Deliberate gaps exercise nullable pollutants
+        assert all(o.so2 is None for o in ds.observations_for("CH001"))
+
+    def test_hotspot_fixture_matches_cluster_contract(self) -> None:
+        records = load_hotspots(PLACEHOLDERS["hcho"])
+        assert len(records) == 4
+        raw = json.loads(PLACEHOLDERS["hcho"].read_text(encoding="utf-8"))
+        assert all(set(c) <= {"cluster_id", "station_count", "mean_latitude", "mean_longitude",
+                              "mean_hcho", "stations"} for c in raw)  # no invented fields
+        assert all(r.confidence is None and r.radius_km is None for r in records)
+
+    def test_fire_fixture_matches_fire_contract(self) -> None:
+        records = load_fires(PLACEHOLDERS["fire"])
+        assert len(records) == 5
+        assert all(r.event_id.startswith("PH-") for r in records)
+
+
+class TestFireLoader:
+    def test_offset_timestamp_is_normalised(self, tmp_path: Path) -> None:
+        item = json.loads(PLACEHOLDERS["fire"].read_text(encoding="utf-8"))[0]
+        item["detected_at"] = "2026-07-14T05:30:00+05:30"
+        path = tmp_path / "f.json"
+        path.write_text(json.dumps([item]), encoding="utf-8")
+        (record,) = load_fires(path)
+        assert record.detected_at.isoformat() == "2026-07-14T00:00:00+00:00"
+
+    @pytest.mark.parametrize(
+        ("mutate", "message"),
+        [
+            (lambda i: i.pop("frp"), "missing required keys"),
+            (lambda i: i.update(brightness=120), "brightness"),
+            (lambda i: i.update(latitude=123), "invalid coordinates"),
+            (lambda i: i.update(detected_at="yesterday"), "detected_at"),
+        ],
+    )
+    def test_contract_violations(self, tmp_path: Path, mutate, message: str) -> None:
+        item = json.loads(PLACEHOLDERS["fire"].read_text(encoding="utf-8"))[0]
+        mutate(item)
+        path = tmp_path / "f.json"
+        path.write_text(json.dumps([item]), encoding="utf-8")
+        with pytest.raises(FireFileError, match=message):
+            load_fires(path)
+
+    def test_duplicate_ids_rejected(self, tmp_path: Path) -> None:
+        item = json.loads(PLACEHOLDERS["fire"].read_text(encoding="utf-8"))[0]
+        path = tmp_path / "f.json"
+        path.write_text(json.dumps([item, item]), encoding="utf-8")
+        with pytest.raises(FireFileError, match="duplicate"):
+            load_fires(path)
+
+    def test_not_a_list(self, tmp_path: Path) -> None:
+        path = tmp_path / "f.json"
+        path.write_text("{}", encoding="utf-8")
+        with pytest.raises(FireFileError, match="JSON list"):
+            load_fires(path)
 
     async def test_invalid_configured_dataset_fails_startup(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
@@ -336,10 +469,17 @@ class TestEndpointsWithDataset:
         assert "Simulated" in data["model_metrics"]["model_name"]
         assert data["model_metrics"]["r_squared"] is None
 
-    async def test_version_reports_dataset(self, client_no_db: AsyncClient) -> None:
+    async def test_sources_and_version_report_dataset(
+        self, client_no_db: AsyncClient, v1_csv: Path
+    ) -> None:
+        load_configured_sources(_settings(DATASET_PATH=str(v1_csv)))
         data = (await client_no_db.get("/api/v1/version")).json()
-        assert data["data_sources"]["aqi"] == "dataset:analysis_ready_dataset.csv"
-        assert data["data_sources"]["hcho"] == "demo"
+        assert data["data_sources"]["aqi"] == "local:analysis_ready_dataset.csv"
+        assert data["data_sources"]["hcho"] == "placeholder:placeholder_hcho_clusters.json"
+        listed = (await client_no_db.get("/api/v1/sources")).json()["sources"]
+        by_domain = {s["domain"]: s for s in listed}
+        assert by_domain["aqi"]["kind"] == "local" and by_domain["aqi"]["records"] == 3
+        assert by_domain["model"]["kind"] == "unavailable"
 
 
 class TestEndpointsWithV2Dataset:
@@ -407,7 +547,10 @@ class TestXAIGlobalImportance:
     async def test_model_does_not_leak_into_forecast(
         self, client_no_db: AsyncClient, model_dir: Path
     ) -> None:
-        sources.model = load_model_artifact(model_dir)
+        load_configured_sources(
+            _settings(ML_MODEL_PATH=str(model_dir), ENABLE_ML_ENDPOINTS=True)
+        )
         data = (await client_no_db.get("/api/v1/forecast", params={"station_id": "DL001"})).json()
+        assert data["forecast_kind"] == "simulated"
         assert data["model_metrics"]["r_squared"] is None
         assert data["feature_importances"] == []

@@ -54,8 +54,9 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     APP_DESCRIPTION: str = (
         "Air quality monitoring and geospatial analytics API for the VAYU-DRISHTI "
-        "dashboard. Domain endpoints serve demo data unless the team's dataset, hotspot "
-        "and model outputs are configured; the forecast is a simulated baseline."
+        "dashboard. Each domain is served from team output when available, otherwise a "
+        "labelled placeholder fixture (see GET /api/v1/sources); the forecast is a "
+        "simulated baseline."
     )
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
@@ -111,13 +112,23 @@ class Settings(BaseSettings):
     # ── API ────────────────────────────────────────────────────────────────────
     API_V1_PREFIX: str = "/api/v1"
 
-    # ── Team data / model outputs (see app/data) ───────────────────────────────
-    # Each source is optional; unset → the service keeps serving demo data.
-    # A configured-but-invalid source fails startup (no silent fallback).
+    # ── Team data / model outputs (see app/data/sources.py) ───────────────────
+    # Resolution per domain: explicit path (strict: invalid → startup fails)
+    # → auto-discovered team output (lenient: incompatible → recorded in
+    # GET /api/v1/sources) → bundled deterministic placeholder fixture
+    # (if ENABLE_PLACEHOLDER_DATA) → unavailable.
     # Path to analysis_ready_dataset.csv (v1) or analysis_ready_dataset_v2.csv.
     DATASET_PATH: str | None = None
     # Path to the HCHO hotspot cluster_summary.json.
     HCHO_HOTSPOTS_PATH: str | None = None
+    # Path to a fire-detection JSON file (see app/data/fires.py contract).
+    FIRE_EVENTS_PATH: str | None = None
+    # Look for team outputs at their documented locations in the repository
+    # (e.g. <repo>/analysis_ready_dataset.csv, <repo>/reports/cluster_summary.json).
+    AUTO_DISCOVER_TEAM_OUTPUTS: bool = True
+    # Fall back to the bundled, clearly-labelled placeholder fixtures when no
+    # team output is available. Set false to report those domains unavailable.
+    ENABLE_PLACEHOLDER_DATA: bool = True
     # Directory with the trained-model artefact (lightgbm_model.joblib + JSON
     # metadata). Loaded only when ENABLE_ML_ENDPOINTS=true.
     ML_MODEL_PATH: str | None = None

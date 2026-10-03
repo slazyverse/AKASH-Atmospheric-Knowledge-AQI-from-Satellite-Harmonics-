@@ -1,0 +1,43 @@
+[
+  {
+    "cluster_id": 0,
+    "station_count": 1,
+    "mean_latitude": 28.6469,
+    "mean_longitude": 77.3164,
+    "mean_hcho": 0.00026,
+    "stations": [
+      "Delhi – Anand Vihar"
+    ]
+  },
+  {
+    "cluster_id": 1,
+    "station_count": 1,
+    "mean_latitude": 22.5958,
+    "mean_longitude": 88.3699,
+    "mean_hcho": 0.00021,
+    "stations": [
+      "Kolkata – Rabindra Bharati"
+    ]
+  },
+  {
+    "cluster_id": 2,
+    "station_count": 2,
+    "mean_latitude": 18.8288,
+    "mean_longitude": 73.3961,
+    "mean_hcho": 0.00014,
+    "stations": [
+      "Mumbai – Bandra Kurla",
+      "Pune – Lohegaon"
+    ]
+  },
+  {
+    "cluster_id": 3,
+    "station_count": 1,
+    "mean_latitude": 23.0225,
+    "mean_longitude": 72.5714,
+    "mean_hcho": 0.00018,
+    "stations": [
+      "Ahmedabad – AUDA"
+    ]
+  }
+]

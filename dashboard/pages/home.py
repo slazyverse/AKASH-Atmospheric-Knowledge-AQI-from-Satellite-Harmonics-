@@ -14,7 +14,7 @@ from datetime import datetime
 
 import streamlit as st
 
-from dashboard.components.empty_state import render_stub_badge
+from dashboard.components.source_badge import render_source_badge
 from dashboard.components.error_state import render_info_notice
 from dashboard.components.footer import render_page_footer
 from dashboard.components.header import render_page_header
@@ -39,7 +39,7 @@ from dashboard.services import (
     hcho_service,
     surface_aqi_service,
 )
-from dashboard.services.data_sources import is_team_data, source_label
+from dashboard.services.data_sources import source_kind, source_label
 
 
 def render() -> None:
@@ -50,18 +50,18 @@ def render() -> None:
     )
 
     api_reachable = st.session_state.get("api_reachable", False)
-    if api_reachable:
+    if not api_reachable:
         render_info_notice(
-            f"Backend connected. Data sources — AQI & stations: {source_label('aqi')}; "
-            f"HCHO: {source_label('hcho')}; fire: {source_label('fire')}; "
-            f"forecast: {source_label('forecast')}; model: "
-            f"{source_label('model') if is_team_data('model') else 'none loaded'}."
+            "⚠️ Backend is offline — every module is UNAVAILABLE. "
+            "Start the FastAPI backend server to load data."
         )
-    else:
-        render_info_notice(
-            "⚠️ Backend is offline. Showing built-in offline demo data. "
-            "Start the FastAPI backend server to load data from the API."
-        )
+    st.markdown(f"<h3 style='color:{PRIMARY};margin-bottom:4px'>🔌 Data Sources</h3>",
+                unsafe_allow_html=True)
+    for domain, what in (
+        ("aqi", "AQI & stations"), ("hcho", "HCHO hotspots"), ("fire", "Fire detections"),
+        ("forecast", "Forecast"), ("model", "Trained model"), ("spatial_rasters", "GIS rasters"),
+    ):
+        render_source_badge(domain, what)
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
@@ -75,8 +75,6 @@ def render() -> None:
         f"<h3 style='color:{PRIMARY};margin-bottom:4px'>📊 Today's Snapshot</h3>",
         unsafe_allow_html=True,
     )
-    if not (is_team_data("aqi") and is_team_data("hcho")):
-        render_stub_badge("Includes demo data — see the source list above")
     _render_kpi_cards()
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
@@ -139,7 +137,7 @@ def _render_mission_hero() -> None:
 
 
 def _render_kpi_cards() -> None:
-    """Render top-level KPI metric cards from the backend (currently demo data)."""
+    """Render top-level KPI metric cards from the backend; captions name each source."""
     summary = surface_aqi_service.get_regional_summary()
     fires = fire_service.get_active_fires()
     alerts = fire_service.get_active_alerts()
@@ -151,12 +149,13 @@ def _render_kpi_cards() -> None:
 
     with c1:
         st.metric(
-            label="🌫️ National Avg AQI",
-            value=f"{summary.avg_aqi:.0f}",
+            label="🌫️ Average AQI",
+            value=f"{summary.avg_aqi:.0f}" if summary.station_count else "N/A",
             delta=aqi_category(summary.avg_aqi) if summary.station_count else None,
             delta_color="off",
         )
-        st.caption(f"Across {summary.station_count} stations · {source_label('aqi')}")
+        as_of = f" · {summary.date_to}" if summary.date_to else ""
+        st.caption(f"Across {summary.station_count} stations{as_of} · {source_label('aqi')}")
 
     with c2:
         st.metric(
@@ -165,14 +164,14 @@ def _render_kpi_cards() -> None:
             delta=f"{len(alerts)} alerts",
             delta_color="inverse",
         )
-        st.caption(f"Last 24 hours · {source_label('fire')}")
+        st.caption(f"24 h to latest detection · {source_label('fire')}")
 
     with c3:
         st.metric(
-            label="⚗️ HCHO Hotspots",
+            label="⚗️ HCHO Hotspot Clusters",
             value=str(len(hotspots)),
         )
-        st.caption(f"Confidence ≥ 60% or unscored · {source_label('hcho')}")
+        st.caption(f"Latest snapshot · {source_label('hcho')}")
 
     with c4:
         r2 = metrics.r_squared if metrics else None
@@ -180,7 +179,16 @@ def _render_kpi_cards() -> None:
             label="🧠 Forecast R²",
             value="N/A" if r2 is None else f"{r2:.2f}",
         )
-        st.caption(metrics.model_name if metrics else "Forecast unavailable")
+        st.caption(f"{metrics.model_name if metrics else 'Forecast unavailable'} · "
+                   f"{source_label('forecast')}")
+
+
+def _status(domain: str) -> str:
+    """Module card status from the backend's source kind."""
+    return {
+        "live": "Live", "local": "Team data", "placeholder": "Placeholder",
+        "simulated": "Simulated", "unavailable": "Unavailable",
+    }.get(source_kind(domain), "Unavailable")
 
 
 def _render_module_cards() -> None:
@@ -190,45 +198,43 @@ def _render_module_cards() -> None:
             "name": "Surface AQI",
             "icon": "🌫️",
             "color": AQI_VERY_POOR,
-            "description": "Station AQI readings with pollutant breakdown, map and category distribution. Source: " + source_label("aqi") + "; trend charts are simulated.",
-            "status": "Team data" if is_team_data("aqi") else "Demo data",
+            "description": "Station AQI readings, pollutant breakdown, map and observed station history. Source: " + source_label("aqi") + ".",
+            "status": _status("aqi"),
         },
         {
             "name": "HCHO Hotspots",
             "icon": "⚗️",
             "color": PRIMARY,
-            "description": "Formaldehyde (HCHO) hotspot map and table. Source: " + source_label("hcho") + "; source attribution and monthly trend are illustrative.",
-            "status": "Team data" if is_team_data("hcho") else "Demo data",
+            "description": "HCHO hotspot clusters and the daily station-collocated HCHO mean. Source: " + source_label("hcho") + "; source attribution unavailable.",
+            "status": _status("hcho"),
         },
         {
             "name": "Fire Monitoring",
             "icon": "🔥",
             "color": ACCENT_ORANGE,
-            "description": "Fire detections with Fire Radiative Power, filterable by region, satellite and FRP. Currently demo events and illustrative alerts.",
-            "status": "Demo data",
+            "description": "Fire detections with Fire Radiative Power and FRP-rule alerts, filterable by region, satellite and FRP. Source: " + source_label("fire") + ".",
+            "status": _status("fire"),
         },
         {
             "name": "AQI Forecast",
             "icon": "📈",
             "color": AQI_GOOD,
-            "description": "Up to 72-hour station AQI outlook. Simulated baseline until a forecasting model is integrated; no accuracy metrics yet.",
-            "status": "Simulated",
+            "description": "Up to 72-hour station AQI outlook. Simulated baseline until a forecasting model is integrated; no accuracy metrics.",
+            "status": _status("forecast"),
         },
         {
             "name": "Explainable AI",
             "icon": "🧠",
             "color": STATUS_WARNING,
-            "description": ("Trained-model metrics and feature importances from the model artefact, plus illustrative SHAP examples."
-                            if is_team_data("model") else
-                            "SHAP-style feature contributions and what-if scenarios. Currently hardcoded illustrative examples, not model output."),
-            "status": "Stub",
+            "description": "Trained-model metrics and global feature importances when a model artefact is loaded; per-prediction SHAP unavailable.",
+            "status": _status("xai_global"),
         },
         {
             "name": "Reports",
             "icon": "📋",
             "color": AQI_MODERATE,
-            "description": "Report list and generation form. Placeholder only — report generation and exports are not implemented yet.",
-            "status": "Stub",
+            "description": "CSV exports of the data served by the API. Report generation (PDF bulletins) is not implemented.",
+            "status": "Exports only",
         },
     ]
 
@@ -282,9 +288,9 @@ def _render_sprint_progress() -> None:
         ("Day 2", "Dashboard Skeleton",     "✅ Complete", AQI_GOOD,    "Streamlit layout, 7-module navigation, service interfaces, stub pages"),
         ("Day 3", "API Endpoints",          "✅ Complete", AQI_GOOD,    "REST endpoints (stub data), API client + caching"),
         ("Day 4", "Charts + GIS Maps",      "✅ Complete", AQI_GOOD,    "Plotly charts, Folium maps, raster-layer interfaces (placeholders), SHAP chart component"),
-        ("Day 5", "GIS Layers + Integration", "⏳ Planned", TEXT_MUTED, "Wire real station data and trained-model output into the existing API and maps"),
-        ("Day 6", "Database Integration",   "⏳ Planned",  TEXT_MUTED,  "Persist station time series and hotspot geometries in PostgreSQL/PostGIS"),
-        ("Day 7", "Reports & Exports",      "⏳ Planned",  TEXT_MUTED,  "PDF summaries, CSV/GeoJSON export endpoints"),
+        ("Day 5", "Team-Output Adapters",   "✅ Complete", AQI_GOOD,    "Dataset / hotspot / model-artefact loaders with fail-fast validation"),
+        ("Day 6", "End-to-End Sources",     "✅ Complete", AQI_GOOD,    "Placeholder fixtures in team contracts, source status, observed history, forecast interface"),
+        ("Day 7", "Database & Reports",     "⏳ Planned",  TEXT_MUTED,  "PostgreSQL/PostGIS persistence, PDF summaries (CSV exports already available)"),
     ]
 
     for day, title, status, color, detail in days:

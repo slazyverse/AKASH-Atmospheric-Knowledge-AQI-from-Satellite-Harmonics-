@@ -147,17 +147,3 @@ def render_coming_soon(
         """,
         unsafe_allow_html=True,
     )
-
-
-def render_stub_badge(label: str = "Demo data — not real measurements") -> None:
-    """Render a small badge marking a section as demo / placeholder content."""
-    st.markdown(
-        f"""
-        <div style="display:inline-block;background:#21262D;border:1px solid {BORDER_DEFAULT};
-                    border-radius:20px;padding:3px 10px;font-size:0.7rem;color:{TEXT_MUTED};
-                    margin-bottom:8px">
-          🔧 {label}
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
