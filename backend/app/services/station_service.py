@@ -4,18 +4,20 @@ backend/app/services/station_service.py — Station metadata service.
 Business logic for CPCB monitoring station registry queries.
 Station metadata is quasi-static (updates only when new stations are commissioned).
 
-Day 3: Returns realistic in-memory stub station list.
-Day N: Replace with DB query against a `stations` table seeded from CPCB data exports.
+Data source: the team's station dataset when DATASET_PATH is configured
+(one entry per station, from its latest observation); otherwise a static demo
+(stub) list — not real CPCB data.
 """
 
 from __future__ import annotations
 
 from app.core.logging import get_logger
+from app.data.sources import sources
 from app.schemas.stations import StationItem, StationsResponse
 
 logger = get_logger(__name__)
 
-# ── Realistic stub station registry ───────────────────────────────────────────
+# ── Demo (stub) station registry ──────────────────────────────────────────────
 
 _STUB_STATIONS: list[dict] = [
     {"station_id": "DL001", "station_name": "Delhi – Anand Vihar",       "latitude": 28.6469, "longitude": 77.3164, "state": "Delhi",       "city": "Delhi",       "network": "CPCB", "is_active": True,  "elevation_m": 216.0},
@@ -33,13 +35,43 @@ _STUB_STATIONS: list[dict] = [
 ]
 
 
+def _registry() -> list[dict]:
+    """Station records from the configured dataset, or the demo list."""
+    if sources.dataset is None:
+        return _STUB_STATIONS
+    return [
+        {
+            "station_id": o.station_id,
+            "station_name": o.station_name,
+            "latitude": o.latitude,
+            "longitude": o.longitude,
+            "state": o.state,
+            "city": o.city,
+            "network": o.network or "unknown",
+            "is_active": True,
+            "elevation_m": o.elevation_m,
+        }
+        for o in sorted(sources.dataset.latest_per_station(), key=lambda o: o.station_id)
+    ]
+
+
 class StationService:
     """
     Service class for CPCB station registry queries.
 
     Provides station metadata used for map rendering and station selectors.
-    Does not include real-time readings (use AQIService for those).
+    Does not include readings (use AQIService for those).
+
+    This registry is the single source of valid station IDs: /forecast
+    validates against it so /stations and /forecast always agree.
     """
+
+    def get_station(self, station_id: str, active_only: bool = True) -> dict | None:
+        """Return the registry record for `station_id`, or None if unknown."""
+        for s in _registry():
+            if s["station_id"] == station_id and (s["is_active"] or not active_only):
+                return s
+        return None
 
     def list_stations(
         self,
@@ -68,7 +100,7 @@ class StationService:
             limit=limit,
         )
 
-        filtered = _STUB_STATIONS
+        filtered = _registry()
 
         if active_only:
             filtered = [s for s in filtered if s["is_active"]]

@@ -21,7 +21,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import DomainValidationError, NotFoundError
 from app.core.logging import get_logger
 from app.schemas.hcho import HCHOHotspotsResponse
 from app.services.hcho_service import HCHOService, hcho_service
@@ -41,7 +41,12 @@ router = APIRouter()
         "classified by source type (industrial | biogenic | biomass_burning | unknown). "
         "Use `min_confidence` to filter by detection quality — 0.6 is recommended for "
         "operational use; lower values expose uncertain detections for research. "
-        "Column density is reported in units of **10¹⁵ molecules/cm²**."
+        "Column density is reported in units of **10¹⁵ molecules/cm²**. "
+        "Data source: the team's hotspot clusters (`cluster_summary.json`) when "
+        "`HCHO_HOTSPOTS_PATH` is configured — radius, confidence and date are null there "
+        "and unscored clusters are not removed by `min_confidence`; otherwise a static demo "
+        "snapshot (today only) with illustrative source_type / confidence. "
+        "`GET /api/v1/version` reports which source is active. Dates without data return 404."
     ),
     tags=["hcho"],
     responses={
@@ -62,7 +67,7 @@ async def get_hcho_hotspots(
         alias="date",
         description=(
             "TROPOMI observation date in ISO 8601 format (YYYY-MM-DD). "
-            "Defaults to today (UTC). Note: full L2 products are available with ~3h delay."
+            "Omit for the latest snapshot (today UTC for demo data)."
         ),
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
@@ -84,8 +89,10 @@ async def get_hcho_hotspots(
         try:
             query_date = date.fromisoformat(date_str)
         except ValueError:
-            raise NotFoundError(
-                message=f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD.",
+            # The pattern validator rejects non-YYYY-MM-DD strings; this catches
+            # impossible dates that match the pattern (e.g. 2026-13-45).
+            raise DomainValidationError(
+                message=f"Invalid date: '{date_str}'. Expected a real calendar date in YYYY-MM-DD.",
                 detail={"received": date_str},
             )
 
@@ -104,7 +111,7 @@ async def get_hcho_hotspots(
         raise NotFoundError(
             message=(
                 f"No HCHO hotspots detected with confidence ≥ {min_confidence:.0%} "
-                f"for {query_date or 'today'}."
+                f"for {query_date or 'the latest snapshot'}."
             ),
             detail={"query_date": str(query_date), "min_confidence": min_confidence},
         )

@@ -42,6 +42,26 @@ AQI_POOR         = "#FF9100"   # 201–300: Poor
 AQI_VERY_POOR    = "#FF3D00"   # 301–400: Very Poor
 AQI_SEVERE       = "#B71C1C"   # 401–500: Severe / Hazardous
 
+
+def aqi_category(aqi: float) -> str:
+    """
+    CPCB category for an AQI value (band upper limits inclusive).
+
+    Single source of truth for the dashboard; mirrors backend/app/core/aqi.py
+    (the dashboard is deployed separately and does not import the backend).
+    """
+    for upper, name in (
+        (50, "Good"),
+        (100, "Satisfactory"),
+        (200, "Moderate"),
+        (300, "Poor"),
+        (400, "Very Poor"),
+    ):
+        if aqi <= upper:
+            return name
+    return "Severe"
+
+
 # ── Status Indicators ────────────────────────────────────────────────────────
 STATUS_OK        = AQI_GOOD
 STATUS_WARNING   = AQI_MODERATE

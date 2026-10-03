@@ -1,7 +1,8 @@
 """
 dashboard/pages/hcho_hotspots.py — HCHO Hotspot Detection module page.
 
-Displays formaldehyde (HCHO) column density hotspots derived from Sentinel-5P.
+Displays formaldehyde (HCHO) hotspots from the backend (currently static demo data).
+The monthly trend chart is SIMULATED and the source attribution is illustrative.
 """
 
 from __future__ import annotations
@@ -16,9 +17,11 @@ from dashboard.components import (
     render_source_attribution_donut,
     render_daily_hcho_trend,
     render_info_notice,
+    render_inline_warning,
     render_page_header,
     render_page_footer,
     render_no_data,
+    render_stub_badge,
 )
 from dashboard.core.theme import (
     PRIMARY,
@@ -26,10 +29,11 @@ from dashboard.core.theme import (
     TEXT_SECONDARY,
 )
 from dashboard.services import hcho_service
+from dashboard.services.data_sources import is_team_data
 
 
 def _generate_mock_hcho_trends() -> pd.DataFrame:
-    """Generate mock 12-month HCHO column density trends."""
+    """SIMULATED 12-month trend (seasonal sine + noise) — not real TROPOMI data."""
     import numpy as np
     dates = pd.date_range(end=datetime.utcnow(), periods=12, freq="ME")
     rng = np.random.default_rng(88)
@@ -50,16 +54,23 @@ def render() -> None:
     """Render the HCHO Hotspots module page."""
     render_page_header(
         module_name="HCHO Hotspots",
-        subtitle="Formaldehyde column density hotspots from Sentinel-5P TROPOMI",
+        subtitle=(
+            "Formaldehyde (HCHO) hotspot clusters from the team's hotspot pipeline"
+            if is_team_data("hcho")
+            else "Formaldehyde (HCHO) hotspots — currently static demo data, not TROPOMI detections"
+        ),
         show_refresh_button=True,
     )
 
     # ── Filters ───────────────────────────────────────────────────────────────
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.selectbox("📅 Date", ["Today", "Last 7 days", "Last 30 days"], key="hcho_date")
+        st.selectbox(
+            "📅 Date", ["Today"], key="hcho_date", disabled=True,
+            help="Only the latest snapshot is available until historical data is integrated.",
+        )
     with c2:
-        st.selectbox("🏭 Source Type", ["All", "Industrial", "Biogenic", "Biomass Burning"], key="hcho_source")
+        st.selectbox("🏭 Source Type", ["All", "Industrial", "Biogenic", "Biomass Burning", "Unknown"], key="hcho_source")
     with c3:
         st.slider("🎯 Min Confidence", 0.5, 1.0, 0.6, 0.05, key="hcho_confidence")
 
@@ -102,7 +113,8 @@ def render() -> None:
                 key="hcho_attribution_select"
             )
             attribution_data = hcho_service.get_source_attribution(selected_hotspot)
-            render_source_attribution_donut(attribution_data, title=f"Source Attribution: {selected_hotspot}")
+            render_stub_badge("Illustrative — same hardcoded split for every hotspot")
+            render_source_attribution_donut(attribution_data, title=f"Illustrative Source Attribution: {selected_hotspot}")
         else:
             render_no_data(
                 title="Attribution Unavailable",
@@ -119,8 +131,12 @@ def render() -> None:
 
     # ── Trend chart ───────────────────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>📈 Monthly HCHO Trend</h4>", unsafe_allow_html=True)
+    render_inline_warning(
+        "This trend is SIMULATED (seasonal sine wave plus noise). It is not real "
+        "Sentinel-5P TROPOMI data; no HCHO time series is integrated yet."
+    )
     trend_df = _generate_mock_hcho_trends()
-    render_daily_hcho_trend(trend_df, title="12-Month Mean Formaldehyde Column Density (India)")
+    render_daily_hcho_trend(trend_df, title="Simulated 12-Month HCHO Trend (demo, India)")
 
     render_page_footer()
 
@@ -151,13 +167,17 @@ def _render_hotspot_metrics(hotspots: list[Any]) -> None:
         st.metric("⚗️ Active Hotspots", str(len(hotspots)), "")
     with c2:
         avg_density = sum(h.column_density for h in hotspots) / max(len(hotspots), 1)
-        st.metric("📊 Avg Column Density", f"{avg_density:.1f}", "×10¹⁵ mol/cm²")
+        st.metric("📊 Avg Column Density", f"{avg_density:.1f}", "×10¹⁵ molec/cm²", delta_color="off")
     with c3:
         industrial = sum(1 for h in hotspots if h.source_type == "industrial")
         st.metric("🏭 Industrial Sources", str(industrial), "")
     with c4:
-        high_conf = sum(1 for h in hotspots if h.confidence >= 0.85)
-        st.metric("✅ High Confidence", str(high_conf), "≥ 0.85")
+        scored = [h for h in hotspots if h.confidence is not None]
+        if scored:
+            high_conf = sum(1 for h in scored if h.confidence >= 0.85)
+            st.metric("✅ High Confidence", str(high_conf), "≥ 0.85", delta_color="off")
+        else:
+            st.metric("✅ High Confidence", "N/A", "not scored by source", delta_color="off")
 
 
 def _render_hotspot_table(hotspots: list[Any]) -> None:
@@ -169,8 +189,8 @@ def _render_hotspot_table(hotspots: list[Any]) -> None:
             "Column Density (×10¹⁵)": h.column_density,
             "Radius (km)": h.radius_km,
             "Source Type": h.source_type.replace("_", " ").title(),
-            "Confidence": f"{h.confidence:.0%}",
+            "Confidence": f"{h.confidence:.0%}" if h.confidence is not None else "not scored",
         }
         for h in hotspots
     ]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)

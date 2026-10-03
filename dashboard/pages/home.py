@@ -21,6 +21,7 @@ from dashboard.components.header import render_page_header
 from dashboard.core.config import dashboard_config
 from dashboard.core.state import navigate_to
 from dashboard.core.theme import (
+    aqi_category,
     ACCENT_ORANGE,
     AQI_GOOD,
     AQI_MODERATE,
@@ -35,26 +36,31 @@ from dashboard.core.theme import (
 from dashboard.services import (
     fire_service,
     forecast_service,
+    hcho_service,
     surface_aqi_service,
 )
+from dashboard.services.data_sources import is_team_data, source_label
 
 
 def render() -> None:
     """Render the Home overview page."""
     render_page_header(
         module_name="Home",
-        subtitle="VAYU-DRISHTI — Real-time atmospheric intelligence for South Asia",
+        subtitle="VAYU-DRISHTI — Satellite-based air-quality intelligence for India (development build)",
     )
 
     api_reachable = st.session_state.get("api_reachable", False)
     if api_reachable:
         render_info_notice(
-            "📅 Day 3 Live API Integration. Dashboard is successfully connected to the FastAPI backend."
+            f"Backend connected. Data sources — AQI & stations: {source_label('aqi')}; "
+            f"HCHO: {source_label('hcho')}; fire: {source_label('fire')}; "
+            f"forecast: {source_label('forecast')}; model: "
+            f"{source_label('model') if is_team_data('model') else 'none loaded'}."
         )
     else:
         render_info_notice(
-            "⚠️ Backend is Offline. Displaying fallback cached/stub data. "
-            "Start the FastAPI backend server to enable live data integration."
+            "⚠️ Backend is offline. Showing built-in offline demo data. "
+            "Start the FastAPI backend server to load data from the API."
         )
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
@@ -69,7 +75,8 @@ def render() -> None:
         f"<h3 style='color:{PRIMARY};margin-bottom:4px'>📊 Today's Snapshot</h3>",
         unsafe_allow_html=True,
     )
-    render_stub_badge()
+    if not (is_team_data("aqi") and is_team_data("hcho")):
+        render_stub_badge("Includes demo data — see the source list above")
     _render_kpi_cards()
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
@@ -103,8 +110,9 @@ def _render_mission_hero() -> None:
             VAYU-DRISHTI fuses <strong style="color:{PRIMARY}">Sentinel-5P TROPOMI</strong>
             satellite measurements, <strong style="color:{PRIMARY}">MODIS/VIIRS</strong> fire
             radiative power, and <strong style="color:{PRIMARY}">CPCB ground sensors</strong>
-            through an ML ensemble to deliver 72-hour AQI forecasts with XAI explanations —
-            enabling evidence-based environmental policy and public health decisions.
+            to estimate surface AQI with machine-learning models and explain the predictions —
+            supporting evidence-based environmental policy. <em>(In development: the dashboard
+            currently shows demo data and a simulated forecast.)</em>
           </div>
           <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
             <span style="background:{BG_ELEVATED};border:1px solid {BORDER_DEFAULT};
@@ -117,11 +125,11 @@ def _render_mission_hero() -> None:
             </span>
             <span style="background:{BG_ELEVATED};border:1px solid {BORDER_DEFAULT};
                          border-radius:20px;padding:4px 12px;font-size:0.75rem;color:{TEXT_SECONDARY}">
-              📡 CPCB / MERRA-2
+              📡 CPCB / ERA5
             </span>
             <span style="background:{BG_ELEVATED};border:1px solid {BORDER_DEFAULT};
                          border-radius:20px;padding:4px 12px;font-size:0.75rem;color:{TEXT_SECONDARY}">
-              🧠 XGBoost + SHAP
+              🧠 ML + SHAP (in development)
             </span>
           </div>
         </div>
@@ -131,11 +139,13 @@ def _render_mission_hero() -> None:
 
 
 def _render_kpi_cards() -> None:
-    """Render top-level KPI metric cards sourced from stub services."""
+    """Render top-level KPI metric cards from the backend (currently demo data)."""
     summary = surface_aqi_service.get_regional_summary()
     fires = fire_service.get_active_fires()
     alerts = fire_service.get_active_alerts()
-    metrics = forecast_service.get_model_metrics()
+    hotspots = hcho_service.get_hotspots()
+    stations = forecast_service.get_stations()
+    metrics = forecast_service.get_model_metrics(stations[0]["station_id"]) if stations else None
 
     c1, c2, c3, c4 = st.columns(4)
 
@@ -143,10 +153,10 @@ def _render_kpi_cards() -> None:
         st.metric(
             label="🌫️ National Avg AQI",
             value=f"{summary.avg_aqi:.0f}",
-            delta="Moderate",
+            delta=aqi_category(summary.avg_aqi) if summary.station_count else None,
             delta_color="off",
         )
-        st.caption(f"Across {summary.station_count} stations")
+        st.caption(f"Across {summary.station_count} stations · {source_label('aqi')}")
 
     with c2:
         st.metric(
@@ -155,25 +165,22 @@ def _render_kpi_cards() -> None:
             delta=f"{len(alerts)} alerts",
             delta_color="inverse",
         )
-        st.caption("Last 24 hours · MODIS/VIIRS")
+        st.caption(f"Last 24 hours · {source_label('fire')}")
 
     with c3:
         st.metric(
             label="⚗️ HCHO Hotspots",
-            value="3",
-            delta="↑2 vs yesterday",
-            delta_color="inverse",
+            value=str(len(hotspots)),
         )
-        st.caption("Sentinel-5P TROPOMI")
+        st.caption(f"Confidence ≥ 60% or unscored · {source_label('hcho')}")
 
     with c4:
+        r2 = metrics.r_squared if metrics else None
         st.metric(
             label="🧠 Forecast R²",
-            value=f"{metrics.r_squared:.2f}",
-            delta=f"RMSE {metrics.rmse:.1f}",
-            delta_color="off",
+            value="N/A" if r2 is None else f"{r2:.2f}",
         )
-        st.caption("72-h forecast accuracy")
+        st.caption(metrics.model_name if metrics else "Forecast unavailable")
 
 
 def _render_module_cards() -> None:
@@ -183,42 +190,44 @@ def _render_module_cards() -> None:
             "name": "Surface AQI",
             "icon": "🌫️",
             "color": AQI_VERY_POOR,
-            "description": "Real-time AQI readings from 400+ CPCB monitoring stations across India. Pollutant breakdown, spatial heatmaps, and trend analysis.",
-            "status": "Live",
+            "description": "Station AQI readings with pollutant breakdown, map and category distribution. Source: " + source_label("aqi") + "; trend charts are simulated.",
+            "status": "Team data" if is_team_data("aqi") else "Demo data",
         },
         {
             "name": "HCHO Hotspots",
             "icon": "⚗️",
             "color": PRIMARY,
-            "description": "Formaldehyde column density maps from Sentinel-5P TROPOMI. Industrial emission source attribution and trend detection.",
-            "status": "Live",
+            "description": "Formaldehyde (HCHO) hotspot map and table. Source: " + source_label("hcho") + "; source attribution and monthly trend are illustrative.",
+            "status": "Team data" if is_team_data("hcho") else "Demo data",
         },
         {
             "name": "Fire Monitoring",
             "icon": "🔥",
             "color": ACCENT_ORANGE,
-            "description": "Active fire detections from MODIS/VIIRS with Fire Radiative Power. AQI impact correlation and trajectory forecasting.",
-            "status": "Live",
+            "description": "Fire detections with Fire Radiative Power, filterable by region, satellite and FRP. Currently demo events and illustrative alerts.",
+            "status": "Demo data",
         },
         {
             "name": "AQI Forecast",
             "icon": "📈",
             "color": AQI_GOOD,
-            "description": "72-hour AQI predictions with calibrated confidence intervals. Multi-station ensemble model with feature-level explanations.",
-            "status": "Live",
+            "description": "Up to 72-hour station AQI outlook. Simulated baseline until a forecasting model is integrated; no accuracy metrics yet.",
+            "status": "Simulated",
         },
         {
             "name": "Explainable AI",
             "icon": "🧠",
             "color": STATUS_WARNING,
-            "description": "SHAP values, LIME explanations, and what-if counterfactual scenarios. Makes ML decisions transparent to scientists and policymakers.",
+            "description": ("Trained-model metrics and feature importances from the model artefact, plus illustrative SHAP examples."
+                            if is_team_data("model") else
+                            "SHAP-style feature contributions and what-if scenarios. Currently hardcoded illustrative examples, not model output."),
             "status": "Stub",
         },
         {
             "name": "Reports",
             "icon": "📋",
             "color": AQI_MODERATE,
-            "description": "On-demand and scheduled PDF/CSV reports. Daily bulletins, weekly summaries, and custom analytics exports.",
+            "description": "Report list and generation form. Placeholder only — report generation and exports are not implemented yet.",
             "status": "Stub",
         },
     ]
@@ -256,7 +265,7 @@ def _render_single_module_card(mod: dict) -> None:
         """,
         unsafe_allow_html=True,
     )
-    if st.button(f"Open {mod['name']}", key=f"home_nav_{mod['name']}", use_container_width=True):
+    if st.button(f"Open {mod['name']}", key=f"home_nav_{mod['name']}", width="stretch"):
         navigate_to(mod["name"])
         st.rerun()
 
@@ -271,11 +280,11 @@ def _render_sprint_progress() -> None:
     days = [
         ("Day 1", "Backend Foundation",    "✅ Complete", AQI_GOOD,    "FastAPI, PostgreSQL, Pydantic Settings, Health/Version endpoints"),
         ("Day 2", "Dashboard Skeleton",     "✅ Complete", AQI_GOOD,    "Streamlit layout, 7-module navigation, service interfaces, stub pages"),
-        ("Day 3", "API Integration",        "✅ Complete", AQI_GOOD,    "Live backend data, real AQI charts, API client + caching"),
-        ("Day 4", "Charts + GIS Maps",      "✅ Complete", AQI_GOOD,    "Plotly charts, Folium GIS maps, COG architecture, XAI SHAP chart"),
-        ("Day 5", "ML + Satellite Ingest",  "⏳ Planned",  TEXT_MUTED,  "XGBoost pipeline, S5P COG ingestion, Kriging interpolation"),
-        ("Day 6", "Reports & Export",       "⏳ Planned",  TEXT_MUTED,  "PDF generation, scheduled emails, CSV exports"),
-        ("Day 7", "Production Hardening",   "⏳ Planned",  TEXT_MUTED,  "Auth, rate limiting, monitoring, CI/CD"),
+        ("Day 3", "API Endpoints",          "✅ Complete", AQI_GOOD,    "REST endpoints (stub data), API client + caching"),
+        ("Day 4", "Charts + GIS Maps",      "✅ Complete", AQI_GOOD,    "Plotly charts, Folium maps, raster-layer interfaces (placeholders), SHAP chart component"),
+        ("Day 5", "GIS Layers + Integration", "⏳ Planned", TEXT_MUTED, "Wire real station data and trained-model output into the existing API and maps"),
+        ("Day 6", "Database Integration",   "⏳ Planned",  TEXT_MUTED,  "Persist station time series and hotspot geometries in PostgreSQL/PostGIS"),
+        ("Day 7", "Reports & Exports",      "⏳ Planned",  TEXT_MUTED,  "PDF summaries, CSV/GeoJSON export endpoints"),
     ]
 
     for day, title, status, color, detail in days:

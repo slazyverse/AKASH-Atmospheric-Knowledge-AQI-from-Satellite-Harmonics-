@@ -5,10 +5,11 @@ Implements folium-based mapping components for:
   - Surface AQI (cpcb station circle markers, colored by category, with detailed popups)
   - HCHO Hotspots (hotspot boundary circles and density overlays)
   - Active Fires (location markers scaled and colored by Fire Radiative Power (FRP))
-  - ML Forecast Coverage
+  - Forecast station coverage
 
 All maps support CartoDB DarkMatter, OpenStreetMap, and Esri World Imagery tiles,
-with coordinate display via plugins.MousePosition, and pre-integrated raster layer toggles.
+with coordinate display via plugins.MousePosition. The raster overlay toggles are
+PLACEHOLDERS: no AQI/HCHO/fire raster exists yet, so they point at unrelated tiles.
 """
 
 from __future__ import annotations
@@ -42,6 +43,11 @@ from dashboard.core.theme import (
 )
 
 
+def _val(value: Any, unit: str = "") -> str:
+    """Popup-safe value: '—' for missing data (never a placeholder number)."""
+    return "—" if value is None else f"{value}{unit}"
+
+
 def _get_cpcb_color(category: str) -> str:
     """Helper to map a category name to the correct brand color code."""
     colors = {
@@ -71,6 +77,8 @@ def create_base_map(
     )
 
     # 1. Base Layer Tile Providers
+    # Only the default basemap is shown on load; the others stay selectable in
+    # the LayerControl (folium adds every base layer with show=True to the map).
     folium.TileLayer(
         tiles="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
         name="CartoDB DarkMatter (Default)",
@@ -86,6 +94,7 @@ def create_base_map(
         attr='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
         max_zoom=19,
         control=True,
+        show=False,
     ).add_to(m)
 
     folium.TileLayer(
@@ -94,6 +103,7 @@ def create_base_map(
         attr="Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community",
         max_zoom=18,
         control=True,
+        show=False,
     ).add_to(m)
 
     # 2. Add Leaflet Plugins (Fullscreen, Mouse coordinates position)
@@ -164,12 +174,12 @@ def render_aqi_spatial_map(readings: list[Any], key: str = "aqi_map") -> None:
                     </tr>
                 </thead>
                 <tbody>
-                    <tr><td>PM2.5</td><td style="text-align:right; font-weight:bold;">{r.pm25}</td><td style="text-align:right;">µg/m³</td></tr>
-                    <tr><td>PM10</td><td style="text-align:right; font-weight:bold;">{r.pm10}</td><td style="text-align:right;">µg/m³</td></tr>
-                    <tr><td>NO2</td><td style="text-align:right; font-weight:bold;">{r.no2}</td><td style="text-align:right;">µg/m³</td></tr>
-                    <tr><td>SO2</td><td style="text-align:right; font-weight:bold;">{r.so2}</td><td style="text-align:right;">µg/m³</td></tr>
-                    <tr><td>O3</td><td style="text-align:right; font-weight:bold;">{r.o3}</td><td style="text-align:right;">µg/m³</td></tr>
-                    <tr><td>CO</td><td style="text-align:right; font-weight:bold;">{r.co}</td><td style="text-align:right;">mg/m³</td></tr>
+                    <tr><td>PM2.5</td><td style="text-align:right; font-weight:bold;">{_val(r.pm25)}</td><td style="text-align:right;">µg/m³</td></tr>
+                    <tr><td>PM10</td><td style="text-align:right; font-weight:bold;">{_val(r.pm10)}</td><td style="text-align:right;">µg/m³</td></tr>
+                    <tr><td>NO2</td><td style="text-align:right; font-weight:bold;">{_val(r.no2)}</td><td style="text-align:right;">µg/m³</td></tr>
+                    <tr><td>SO2</td><td style="text-align:right; font-weight:bold;">{_val(r.so2)}</td><td style="text-align:right;">µg/m³</td></tr>
+                    <tr><td>O3</td><td style="text-align:right; font-weight:bold;">{_val(r.o3)}</td><td style="text-align:right;">µg/m³</td></tr>
+                    <tr><td>CO</td><td style="text-align:right; font-weight:bold;">{_val(r.co)}</td><td style="text-align:right;">mg/m³</td></tr>
                 </tbody>
             </table>
             <div style="font-size:9px; color:{TEXT_SECONDARY}; margin-top:8px; border-top: 1px solid {BORDER_DEFAULT}; padding-top:4px; text-align:right;">
@@ -197,13 +207,13 @@ def render_aqi_spatial_map(readings: list[Any], key: str = "aqi_map") -> None:
         bounds = [[r.latitude, r.longitude] for r in readings]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # 2. Satellite / COG Raster Integration Layer (Future Day 5 Expansion Point)
+    # 2. Raster overlay slot — PLACEHOLDER (no AQI interpolation exists yet)
     aqi_raster = AQIRasterInterface()
     tile_url = aqi_raster.get_tile_url(datetime.utcnow())
     folium.raster_layers.TileLayer(
         tiles=tile_url,
-        attr="VAYU-DRISHTI Kriging Interpolation Model",
-        name="Interpolated AQI Raster (COG Overlay)",
+        attr="Placeholder tiles — not AQI data",
+        name="AQI raster — placeholder (not implemented)",
         overlay=True,
         control=True,
         opacity=0.6,
@@ -273,21 +283,19 @@ def render_hcho_spatial_map(hotspots: list[Any], key: str = "hcho_map") -> None:
             <h5 style="color: #D3436C; margin: 0 0 6px 0; font-size: 12px; font-weight:600;">⚗️ Hotspot: {h.hotspot_id}</h5>
             <div style="margin-bottom:4px;"><b>Latitude:</b> {h.latitude:.4f}</div>
             <div style="margin-bottom:4px;"><b>Longitude:</b> {h.longitude:.4f}</div>
-            <div style="margin-bottom:4px;"><b>Column Density:</b> {h.column_density:.2f} ×10¹⁵ mol/cm²</div>
-            <div style="margin-bottom:4px;"><b>Radius:</b> {h.radius_km} km</div>
+            <div style="margin-bottom:4px;"><b>Column Density:</b> {h.column_density:.2f} ×10¹⁵ molecules/cm²</div>
+            <div style="margin-bottom:4px;"><b>Radius:</b> {_val(h.radius_km, " km") if h.radius_km is not None else "not provided"}</div>
             <div style="margin-bottom:4px;"><b>Source:</b> <span style="text-transform: capitalize; color:{PRIMARY}; font-weight:bold;">{h.source_type}</span></div>
-            <div style="margin-bottom:4px;"><b>Confidence:</b> {h.confidence:.0%}</div>
+            <div style="margin-bottom:4px;"><b>Confidence:</b> {f"{h.confidence:.0%}" if h.confidence is not None else "not scored"}</div>
             <div style="font-size:8px; color:{TEXT_SECONDARY}; margin-top:6px; border-top: 1px solid {BORDER_DEFAULT}; padding-top:4px;">
-                Detected: {h.detected_at.strftime('%Y-%m-%d %H:%M')}
+                Detected: {h.detected_at.strftime('%Y-%m-%d %H:%M') if h.detected_at else "date not provided"}
             </div>
         </div>
         """
         popup = folium.Popup(popup_html, max_width=240)
 
-        # Radius in folium.Circle expects METERS, so radius_km * 1000
-        folium.Circle(
+        style = dict(
             location=[h.latitude, h.longitude],
-            radius=h.radius_km * 1000,
             popup=popup,
             color="#D3436C",
             fill=True,
@@ -295,20 +303,26 @@ def render_hcho_spatial_map(hotspots: list[Any], key: str = "hcho_map") -> None:
             fill_opacity=0.3,
             weight=1.5,
             tooltip=f"{h.hotspot_id} — Density: {h.column_density}",
-        ).add_to(hotspot_group)
+        )
+        if h.radius_km is not None:
+            # folium.Circle radius is in METRES
+            folium.Circle(radius=h.radius_km * 1000, **style).add_to(hotspot_group)
+        else:
+            # No extent in the source: fixed-size point marker, not an invented radius
+            folium.CircleMarker(radius=9, **style).add_to(hotspot_group)
 
     hotspot_group.add_to(m)
     if hotspots:
         bounds = [[h.latitude, h.longitude] for h in hotspots]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # 2. Sentinel-5P HCHO Raster Overlay (Future Day 5 Expansion Point)
+    # 2. Raster overlay slot — PLACEHOLDER (no HCHO raster exists yet)
     hcho_raster = HCHORasterInterface()
     tile_url = hcho_raster.get_tile_url(datetime.utcnow())
     folium.raster_layers.TileLayer(
         tiles=tile_url,
-        attr="Sentinel-5P TROPOMI HCHO Column Density",
-        name="Sentinel-5P HCHO Raster (COG Overlay)",
+        attr="Placeholder tiles — not HCHO data",
+        name="HCHO raster — placeholder (not implemented)",
         overlay=True,
         control=True,
         opacity=0.55,
@@ -320,7 +334,7 @@ def render_hcho_spatial_map(hotspots: list[Any], key: str = "hcho_map") -> None:
     if hotspots:
         plugins.HeatMap(
             data=[[h.latitude, h.longitude, h.column_density] for h in hotspots],
-            name="HCHO Density Heatmap (Placeholder)",
+            name="HCHO heatmap of demo hotspots",
             min_opacity=0.2,
             radius=25,
             blur=15,
@@ -425,13 +439,13 @@ def render_fire_spatial_map(fires: list[Any], key: str = "fire_map") -> None:
         bounds = [[f.latitude, f.longitude] for f in fires]
         m.fit_bounds(bounds, padding=(20, 20))
 
-    # Satellite Fire Raster Overlay (Future Day 5 Expansion Point)
+    # Raster overlay slot — PLACEHOLDER (no fire raster exists yet)
     fire_raster = FireRasterInterface()
     tile_url = fire_raster.get_tile_url(datetime.utcnow())
     folium.raster_layers.TileLayer(
         tiles=tile_url,
-        attr="MODIS/VIIRS Active Fires Power Density",
-        name="MODIS/VIIRS Fire Raster (COG Overlay)",
+        attr="Placeholder tiles — not fire data",
+        name="Fire raster — placeholder (not implemented)",
         overlay=True,
         control=True,
         opacity=0.6,
@@ -473,8 +487,8 @@ def _add_fire_legend_element(m: folium.Map) -> None:
 
 def render_forecast_coverage_map(readings: list[Any], key: str = "forecast_map") -> None:
     """
-    Render a map showing monitoring stations colored by their FORECAST AQI category.
-    Includes popup cards displaying current vs forecast parameters.
+    Render the forecastable stations, colored by their latest (demo) AQI category.
+    Popups show the latest reading only; the forecast itself is on the chart.
     """
     m = create_base_map(center=[22.8, 79.0], zoom=5)
 
@@ -493,15 +507,12 @@ def render_forecast_coverage_map(readings: list[Any], key: str = "forecast_map")
             padding: 8px;
             font-size: 11px;
         ">
-            <h5 style="color: {PRIMARY}; margin: 0 0 6px 0; font-size: 12px; font-weight:600;">🔮 Forecast: {r.station_name}</h5>
+            <h5 style="color: {PRIMARY}; margin: 0 0 6px 0; font-size: 12px; font-weight:600;">📍 {r.station_name}</h5>
             <div style="margin-bottom:6px;">
-                <b>Baseline AQI:</b> {r.aqi_value} ({r.aqi_category})
-            </div>
-            <div style="border-top:1px solid {BORDER_DEFAULT}; padding-top:6px; margin-bottom:6px;">
-                <b>72h Predicted AQI:</b> <span style="color:{color}; font-weight:bold;">{int(r.aqi_value * 0.95)}</span>
+                <b>Latest AQI:</b> <span style="color:{color}; font-weight:bold;">{r.aqi_value}</span> ({r.aqi_category})
             </div>
             <div style="font-size:9px; color:{TEXT_SECONDARY}; text-align:right;">
-                Model: VAYU-DRISHTI XGBoost v1
+                Demo data · forecast shown in the chart (simulated)
             </div>
         </div>
         """
@@ -516,7 +527,7 @@ def render_forecast_coverage_map(readings: list[Any], key: str = "forecast_map")
             fill_color=color,
             fill_opacity=0.7,
             weight=1.5,
-            tooltip=f"{r.station_name} — Click for Forecast Summary",
+            tooltip=f"{r.station_name} — Click for latest reading",
         ).add_to(forecast_group)
 
     forecast_group.add_to(m)

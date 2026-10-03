@@ -53,9 +53,9 @@ class Settings(BaseSettings):
     APP_NAME: str = "VAYU-DRISHTI"
     APP_VERSION: str = "0.1.0"
     APP_DESCRIPTION: str = (
-        "Air quality monitoring and geospatial analytics platform. "
-        "Ingests real-time sensor data, applies ML forecasting models, "
-        "and exposes a geospatial API for dashboard consumption."
+        "Air quality monitoring and geospatial analytics API for the VAYU-DRISHTI "
+        "dashboard. Domain endpoints serve demo data unless the team's dataset, hotspot "
+        "and model outputs are configured; the forecast is a simulated baseline."
     )
     ENVIRONMENT: Literal["development", "staging", "production"] = "development"
     DEBUG: bool = False
@@ -111,14 +111,17 @@ class Settings(BaseSettings):
     # ── API ────────────────────────────────────────────────────────────────────
     API_V1_PREFIX: str = "/api/v1"
 
-    # ── Future: ML Inference (Day 4+) ──────────────────────────────────────────
-    # These fields are wired up now so they appear in docs and .env.example.
-    # The ML service router will read them when ENABLE_ML_ENDPOINTS=true.
+    # ── Team data / model outputs (see app/data) ───────────────────────────────
+    # Each source is optional; unset → the service keeps serving demo data.
+    # A configured-but-invalid source fails startup (no silent fallback).
+    # Path to analysis_ready_dataset.csv (v1) or analysis_ready_dataset_v2.csv.
+    DATASET_PATH: str | None = None
+    # Path to the HCHO hotspot cluster_summary.json.
+    HCHO_HOTSPOTS_PATH: str | None = None
+    # Directory with the trained-model artefact (lightgbm_model.joblib + JSON
+    # metadata). Loaded only when ENABLE_ML_ENDPOINTS=true.
     ML_MODEL_PATH: str | None = None
     ENABLE_ML_ENDPOINTS: bool = False
-
-    # ── Future: Caching (Day N+) ───────────────────────────────────────────────
-    REDIS_URL: str | None = None
 
     # ── Validators ────────────────────────────────────────────────────────────
 

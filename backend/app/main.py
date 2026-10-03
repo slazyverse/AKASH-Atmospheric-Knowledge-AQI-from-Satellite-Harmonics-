@@ -42,6 +42,7 @@ from app.api.v1.router import router as api_v1_router
 from app.core.config import Settings, get_settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
+from app.data.sources import load_configured_sources, sources
 
 # ── Bootstrap ─────────────────────────────────────────────────────────────────
 # Load settings and configure logging as the very first actions.
@@ -82,6 +83,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         api_prefix=settings.API_V1_PREFIX,
         debug=settings.DEBUG,
     )
+
+    # Load the team's dataset / hotspot / model outputs when configured.
+    # Raises on an invalid configured source, so startup fails loudly.
+    load_configured_sources(settings)
+    logger.info("Data sources ready", **sources.describe())
 
     yield  # Application is live and serving traffic
 

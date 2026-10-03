@@ -7,6 +7,12 @@ secondaryBackgroundColor = "#161B22"   # Slightly lighter for card surfaces
 textColor           = "#E6EDF3"        # Soft white: legible on dark backgrounds
 font                = "sans serif"
 
+[client]
+# The app uses its own session-state router (dashboard/app.py). Hide Streamlit's
+# automatic multipage nav, which would otherwise list dashboard/pages/*.py and
+# open blank pages (those modules only define render()).
+showSidebarNavigation = false
+
 [server]
 # Disable file watcher in production deployments; keep on in dev
 runOnSave           = false

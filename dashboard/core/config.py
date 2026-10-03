@@ -80,11 +80,6 @@ class DashboardConfig:
     auto_refresh_seconds: int = 300   # 5-minute default for live data panels
     max_data_points: int = 1000       # Cap for chart performance
 
-    # ── Feature Flags (Day 3+ will flip these to True) ───────────────────────
-    enable_live_api: bool = False
-    enable_map_layers: bool = False
-    enable_ml_forecast: bool = False
-
     # ── Data Freshness Warning Threshold ─────────────────────────────────────
     stale_data_minutes: int = 60
 
@@ -120,9 +115,6 @@ def _build_config() -> DashboardConfig:
         api_base_url=os.getenv("VAYU_API_URL", "http://localhost:8000"),
         api_v1_prefix=os.getenv("VAYU_API_V1_PREFIX", "/api/v1"),
         api_timeout_seconds=int(os.getenv("VAYU_API_TIMEOUT", "30")),
-        enable_live_api=os.getenv("VAYU_ENABLE_LIVE_API", "false").lower() == "true",
-        enable_map_layers=os.getenv("VAYU_ENABLE_MAP_LAYERS", "false").lower() == "true",
-        enable_ml_forecast=os.getenv("VAYU_ENABLE_ML_FORECAST", "false").lower() == "true",
     )
 
 

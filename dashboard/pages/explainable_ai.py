@@ -1,10 +1,10 @@
 """
 dashboard/pages/explainable_ai.py — Explainable AI (XAI) module page.
 
-Makes ML forecast decisions interpretable through SHAP, LIME, and what-if analysis.
-
-Day 2 Scope: Stub SHAP values table, counterfactual scenarios, XAI methodology explanation.
-Day 3/4 Scope: Plotly SHAP waterfall chart, LIME explanation, interactive what-if sliders.
+Top section: the trained model's real test-set metrics and global feature
+importances, served by GET /api/v1/xai/global-importance when the backend has
+a model artefact loaded. The SHAP / counterfactual sections below remain
+hardcoded illustrative examples until per-prediction SHAP output exists.
 """
 
 from __future__ import annotations
@@ -36,12 +36,19 @@ def render() -> None:
     """Render the Explainable AI module page."""
     render_page_header(
         module_name="Explainable AI",
-        subtitle="Transparent ML decisions via SHAP values, LIME, and counterfactual scenarios",
+        subtitle="Trained-model metrics when a model artefact is loaded, plus illustrative explanation examples",
     )
 
+    # ── Trained model (real artefact metadata, when loaded) ───────────────────
+    st.markdown(f"<h4 style='color:{PRIMARY}'>🧠 Trained Model</h4>", unsafe_allow_html=True)
+    _render_trained_model()
+
+    st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
     render_info_notice(
-        "Day 4 Complete: SHAP waterfall chart is now implemented. "
-        "All XAI features display live stub data from the forecast model."
+        "Illustrative only: everything below this point is a hardcoded example, not output "
+        "from a trained model. Per-prediction SHAP explanations will appear once a model "
+        "provides them."
     )
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -61,6 +68,7 @@ def render() -> None:
 
     # ── SHAP Values ──────────────────────────────────────────────────────────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>🔬 SHAP Feature Contributions</h4>", unsafe_allow_html=True)
+    render_stub_badge("Illustrative example — hardcoded, not model output")
 
     left, right = st.columns([2, 3])
     with left:
@@ -71,30 +79,69 @@ def render() -> None:
                 shap_values=explanation.shap_values,
                 base_value=explanation.base_value,
                 predicted_aqi=explanation.predicted_aqi,
-                title=f"SHAP Contributions — {explanation.station_id} (AQI {explanation.predicted_aqi:.0f})",
+                title=f"Illustrative SHAP Contributions — {explanation.station_id} (AQI {explanation.predicted_aqi:.0f})",
             )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ── Counterfactual Scenarios ──────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>🔄 What-If Counterfactuals</h4>", unsafe_allow_html=True)
-    render_stub_badge()
+    render_stub_badge("Illustrative example — hardcoded, not model output")
     _render_counterfactuals()
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ── Global Feature Importance ─────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>🌍 Global Feature Importance</h4>", unsafe_allow_html=True)
-    render_stub_badge()
+    render_stub_badge("Illustrative example — hardcoded, not model output")
     _render_global_importance()
 
     render_page_footer()
 
 
+def _render_trained_model() -> None:
+    """Real metrics + importances from the model artefact; honest empty state otherwise."""
+    data = xai_service.get_model_importance()
+    if not data:
+        render_info_notice(
+            "No trained-model artefact is loaded in the backend "
+            "(GET /api/v1/xai/global-importance returned no data)."
+        )
+        return
+
+    m = data.get("model_metrics", {})
+
+    def fmt(value: Any, spec: str) -> str:
+        return "N/A" if value is None else format(value, spec)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.metric("📊 R²", fmt(m.get("r_squared"), ".3f"))
+    with c2:
+        st.metric("📉 RMSE", fmt(m.get("rmse"), ".1f"))
+    with c3:
+        st.metric("📉 MAE", fmt(m.get("mae"), ".1f"))
+    with c4:
+        st.metric("⚖️ Mean Bias", fmt(data.get("mean_bias_error"), "+.1f"))
+    with c5:
+        st.metric("🎯 Target", data.get("target_column") or "N/A")
+    st.caption(
+        f"{m.get('model_name', 'Model')} · {m.get('model_version', '')} · "
+        f"{m.get('validation_period') or 'validation split not recorded'}"
+    )
+
+    features = data.get("feature_importances", [])
+    if features:
+        df = pd.DataFrame(features).rename(columns={"feature": "Feature", "importance": "Share"})
+        df["Share"] = df["Share"].map(lambda x: f"{x:.1%}")
+        st.dataframe(df, width="stretch", hide_index=True)
+    st.caption(data.get("importance_method", ""))
+
+
 def _render_xai_explainer() -> None:
     methods = [
         ("🔬 SHAP",          PRIMARY,        "SHapley Additive exPlanations — assigns each feature a contribution value for each prediction using game-theoretic principles."),
-        ("🔍 LIME",          STATUS_WARNING,  "Local Interpretable Model-agnostic Explanations — fits a simple interpretable model around each prediction locally."),
+        ("🔍 LIME",          STATUS_WARNING,  "Local Interpretable Model-agnostic Explanations — fits a simple interpretable model around each prediction locally. (Not implemented.)"),
         ("🔄 Counterfactual",ACCENT_ORANGE,  "What-if analysis — shows how the prediction changes when specific input features are altered."),
     ]
     cols = st.columns(3)
@@ -116,9 +163,16 @@ def _render_xai_explainer() -> None:
 def _render_controls() -> None:
     c1, c2 = st.columns([3, 2])
     with c1:
-        st.selectbox("📌 Prediction", ["Delhi – Anand Vihar (AQI 312, 2024-01-15 14:00)"], key="xai_prediction")
+        st.selectbox(
+            "📌 Prediction", ["Illustrative example — Delhi – Anand Vihar (AQI 312)"],
+            key="xai_prediction", disabled=True,
+            help="Prediction selection becomes available once per-prediction SHAP output exists.",
+        )
     with c2:
-        st.selectbox("⚖️ XAI Method", ["SHAP", "LIME", "Counterfactual"], key="xai_method")
+        st.selectbox(
+            "⚖️ XAI Method", ["SHAP (illustrative)"], key="xai_method", disabled=True,
+            help="Only an illustrative SHAP example exists today.",
+        )
 
 
 def _render_shap_table(explanation: Any) -> None:
@@ -136,7 +190,7 @@ def _render_shap_table(explanation: Any) -> None:
             explanation.shap_values.items(), key=lambda x: abs(x[1]), reverse=True
         )
     ]
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(f"Base value: {explanation.base_value:.1f} → Predicted AQI: {explanation.predicted_aqi:.0f}")
 
 
@@ -180,5 +234,5 @@ def _render_global_importance() -> None:
         "mean_abs_shap": "Mean |SHAP|",
         "rank": "Rank",
     })
-    st.dataframe(df[["Rank", "Feature", "Mean |SHAP|"]], use_container_width=True, hide_index=True)
-    st.caption("Averaged over all predictions in the validation set (stub values)")
+    st.dataframe(df[["Rank", "Feature", "Mean |SHAP|"]], width="stretch", hide_index=True)
+    st.caption("Hardcoded illustrative values — not computed from any model or dataset.")

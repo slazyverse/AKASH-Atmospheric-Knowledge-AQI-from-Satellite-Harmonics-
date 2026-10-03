@@ -2,8 +2,8 @@
 GET /api/v1/fire — Active Fire Monitoring endpoint.
 
 Returns active satellite-detected fire events and high-severity alerts
-within a configurable time window. Fire detections come from MODIS
-(Terra/Aqua) and VIIRS (SNPP / NOAA-20) instruments via NASA FIRMS.
+within a configurable time window. The schema models MODIS (Terra/Aqua) and
+VIIRS (SNPP / NOAA-20) detections; the current data is a static demo set.
 
 Design decisions:
   - Single endpoint returns BOTH events AND alerts in one payload,
@@ -40,8 +40,11 @@ router = APIRouter()
         "Alerts are generated when FRP exceeds severity thresholds or when predicted "
         "AQI impact at downwind monitoring stations is significant. "
         "The response combines events and alerts in a single payload to minimise "
-        "client round-trips. Filter by `min_frp` to focus on intense fires "
-        "and by `hours` to narrow the observation window."
+        "client round-trips. Filter by `region`, by `min_frp` to focus on intense fires, "
+        "and by `hours` to narrow the observation window; alerts are limited to the "
+        "returned events. "
+        "**Current data is a static demo set (5 events, 2 alerts) — not real FIRMS "
+        "detections; alert impact scores are illustrative.**"
     ),
     tags=["fire"],
     responses={
@@ -56,7 +59,10 @@ router = APIRouter()
 async def get_fire_data(
     region: str = Query(
         default="All India",
-        description="Geographic region filter. Examples: 'All India', 'North', 'Northeast'.",
+        description=(
+            "Region filter: 'All India' (all), a zone ('North', 'Central', 'East', "
+            "'Northeast', 'West', 'South'), or a state / district name."
+        ),
         min_length=1,
         max_length=100,
     ),

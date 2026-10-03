@@ -69,19 +69,21 @@ class TestHealthEndpoint:
     async def test_database_component_unhealthy_when_db_fails(
         self, client_db_failure: AsyncClient
     ) -> None:
-        """Database component reports unhealthy when the DB raises an exception."""
+        """DB failure → 503 with the component breakdown under error.detail (documented)."""
         response = await client_db_failure.get("/api/v1/health")
-        assert response.status_code == status.HTTP_200_OK
-        data = response.json()
-        assert data["components"]["database"]["status"] == "unhealthy"
+        assert response.status_code == status.HTTP_503_SERVICE_UNAVAILABLE
+        detail = response.json()["error"]["detail"]
+        assert detail["components"]["database"]["status"] == "unhealthy"
+        assert detail["components"]["api"]["status"] == "healthy"
 
     async def test_overall_status_unhealthy_when_db_fails(
         self, client_db_failure: AsyncClient
     ) -> None:
-        """Aggregate status degrades to 'unhealthy' when any component is unhealthy."""
+        """Aggregate status is 'unhealthy' and the error code is DATABASE_ERROR."""
         response = await client_db_failure.get("/api/v1/health")
-        data = response.json()
-        assert data["status"] == "unhealthy"
+        error = response.json()["error"]
+        assert error["code"] == "DATABASE_ERROR"
+        assert error["detail"]["status"] == "unhealthy"
 
     async def test_database_latency_present_when_healthy(self, client: AsyncClient) -> None:
         """Healthy database component includes a numeric latency_ms field."""

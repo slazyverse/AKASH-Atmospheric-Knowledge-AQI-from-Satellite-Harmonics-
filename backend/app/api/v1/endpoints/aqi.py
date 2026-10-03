@@ -23,7 +23,7 @@ from datetime import date
 
 from fastapi import APIRouter, Depends, Query, status
 
-from app.core.exceptions import NotFoundError
+from app.core.exceptions import DomainValidationError, NotFoundError
 from app.core.logging import get_logger
 from app.schemas.aqi import AQIDailyListResponse
 from app.services.aqi_service import AQIService, aqi_service
@@ -38,11 +38,16 @@ router = APIRouter()
     summary="Daily AQI Summary",
     description=(
         "Returns the surface AQI summary and individual station readings for a region and date. "
-        "When called with no parameters, returns the national India summary for today (UTC). "
-        "The `summary` field contains aggregate statistics (avg / max / min AQI, dominant pollutant) "
-        "while the `summary.readings` array contains per-station observations. "
-        "**Note:** Station readings are capped at `limit` per request. "
-        "Use `region` to filter by geographic zone."
+        "When called with no parameters, returns the national India summary for the latest "
+        "available date. "
+        "The `summary` field aggregates every matched station (avg / max / min AQI) "
+        "while the `summary.readings` array contains per-station observations, capped at `limit`. "
+        "`region` accepts 'India' (all), a zone ('North India', 'Central India', 'East India', "
+        "'Northeast India', 'West India', 'South India'), or a state / city name. "
+        "Data source: the team's station dataset when `DATASET_PATH` is configured (each "
+        "station's latest observation on the date; pollutants are null when not reported); "
+        "otherwise a static demo snapshot (8 stations, today only) — not real measurements. "
+        "`GET /api/v1/version` reports which source is active. Dates without data return 404."
     ),
     tags=["aqi"],
     responses={
@@ -60,7 +65,10 @@ router = APIRouter()
 async def get_aqi_daily(
     region: str = Query(
         default="India",
-        description="Geographic region to query. Examples: 'India', 'North India', 'Delhi'.",
+        description=(
+            "Region to query: 'India' (all), a zone such as 'North India' or 'South', "
+            "or a state / city name such as 'Maharashtra' or 'Delhi'."
+        ),
         min_length=1,
         max_length=100,
     ),
@@ -69,14 +77,14 @@ async def get_aqi_daily(
         alias="date",
         description=(
             "Target date in ISO 8601 format (YYYY-MM-DD). "
-            "Defaults to today (UTC) if not provided."
+            "Defaults to the latest available date (today UTC for demo data)."
         ),
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
     limit: int = Query(
         default=50,
         ge=1,
-        le=500,
+        le=1000,
         description="Maximum number of station readings to include in the response.",
     ),
     service: AQIService = Depends(lambda: aqi_service),
@@ -88,10 +96,10 @@ async def get_aqi_daily(
         try:
             query_date = date.fromisoformat(date_str)
         except ValueError:
-            # FastAPI's pattern validator catches malformed strings first,
-            # but this is a secondary guard for edge cases.
-            raise NotFoundError(
-                message=f"Invalid date format: '{date_str}'. Expected YYYY-MM-DD.",
+            # The pattern validator rejects non-YYYY-MM-DD strings; this catches
+            # impossible dates that match the pattern (e.g. 2026-13-45).
+            raise DomainValidationError(
+                message=f"Invalid date: '{date_str}'. Expected a real calendar date in YYYY-MM-DD.",
                 detail={"received": date_str},
             )
 
@@ -110,7 +118,7 @@ async def get_aqi_daily(
 
     if result.count == 0:
         raise NotFoundError(
-            message=f"No AQI data found for region '{region}' on {query_date or 'today'}.",
+            message=f"No AQI data found for region '{region}' on {result.summary.summary_date}.",
             detail={"region": region, "date": str(query_date)},
         )
 

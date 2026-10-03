@@ -1,7 +1,8 @@
 """
 dashboard/pages/surface_aqi.py — Surface AQI module page.
 
-Displays real-time AQI readings from CPCB monitoring stations.
+Displays station AQI readings from the backend (currently static demo data).
+The 30-day trend charts are SIMULATED from the latest reading — not real history.
 """
 
 from __future__ import annotations
@@ -17,11 +18,13 @@ from dashboard.components import (
     render_pollutant_trend_comparison,
     render_aqi_category_distribution,
     render_info_notice,
+    render_inline_warning,
     render_page_header,
     render_page_footer,
     render_no_data,
 )
 from dashboard.core.theme import (
+    aqi_category,
     AQI_GOOD,
     AQI_MODERATE,
     AQI_POOR,
@@ -33,10 +36,11 @@ from dashboard.core.theme import (
     TEXT_SECONDARY,
 )
 from dashboard.services import surface_aqi_service
+from dashboard.services.data_sources import is_team_data, source_label
 
 
 def _generate_mock_history(reading: Any, days: int = 7) -> pd.DataFrame:
-    """Generate realistic daily variations around the latest station reading."""
+    """SIMULATED history: a seeded random walk from the latest reading (not real data)."""
     import numpy as np
     
     # Deterministic generation per station to prevent jumpy charts on rerun
@@ -56,14 +60,18 @@ def _generate_mock_history(reading: Any, days: int = 7) -> pd.DataFrame:
     curr_o3 = reading.o3
     curr_co = reading.co
     
+    def step(value, sd, lo, hi):
+        # A pollutant the station did not report stays missing (no simulated series)
+        return None if value is None else max(lo, min(hi, value + rng.normal(0, sd)))
+
     for dt in dates:
         curr_aqi = max(10, min(500, int(curr_aqi + rng.normal(0, 15))))
-        curr_pm25 = max(5.0, min(350.0, curr_pm25 + rng.normal(0, 8)))
-        curr_pm10 = max(10.0, min(500.0, curr_pm10 + rng.normal(0, 12)))
-        curr_no2 = max(2.0, min(150.0, curr_no2 + rng.normal(0, 4)))
-        curr_so2 = max(1.0, min(80.0, curr_so2 + rng.normal(0, 2)))
-        curr_o3 = max(5.0, min(180.0, curr_o3 + rng.normal(0, 5)))
-        curr_co = max(0.1, min(10.0, curr_co + rng.normal(0, 0.1)))
+        curr_pm25 = step(curr_pm25, 8, 5.0, 350.0)
+        curr_pm10 = step(curr_pm10, 12, 10.0, 500.0)
+        curr_no2 = step(curr_no2, 4, 2.0, 150.0)
+        curr_so2 = step(curr_so2, 2, 1.0, 80.0)
+        curr_o3 = step(curr_o3, 5, 5.0, 180.0)
+        curr_co = step(curr_co, 0.1, 0.1, 10.0)
         
         data.append({
             "recorded_at": dt,
@@ -82,7 +90,11 @@ def render() -> None:
     """Render the Surface AQI module page."""
     render_page_header(
         module_name="Surface AQI",
-        subtitle="Real-time air quality index readings from CPCB monitoring stations",
+        subtitle=(
+            f"Station AQI readings — {source_label('aqi')}"
+            if is_team_data("aqi")
+            else "Station AQI readings — currently static demo data, not live CPCB measurements"
+        ),
         show_refresh_button=True,
         show_export_button=True,
     )
@@ -148,15 +160,19 @@ def render() -> None:
             readings[0]
         )
         
-        # Generate trend history
+        # Simulated trend history (no historical data is integrated yet)
         history_df = _generate_mock_history(active_reading, days=30)
+        render_inline_warning(
+            "The AQI and pollutant trend charts below are SIMULATED (a seeded random walk "
+            "from the latest reading). They are not real historical measurements."
+        )
         
         # Render Tabs for different trends
         tab1, tab2, tab3 = st.tabs(["AQI Trend", "Pollutant Trends", "Regional Distribution"])
         with tab1:
-            render_aqi_time_series(history_df, title=f"30-Day AQI Trend: {selected_station}")
+            render_aqi_time_series(history_df, title=f"Simulated 30-Day AQI Trend (demo): {selected_station}")
         with tab2:
-            render_pollutant_trend_comparison(history_df, title=f"Pollutant Concentrations: {selected_station}")
+            render_pollutant_trend_comparison(history_df, title=f"Simulated Pollutant Trends (demo): {selected_station}")
         with tab3:
             # Show CPCB categories for all loaded stations in this region
             distribution_df = pd.DataFrame([{"Category": r.aqi_category} for r in readings])
@@ -175,11 +191,22 @@ def _render_filters() -> None:
     """Render region, date range, and pollutant filter controls."""
     c1, c2, c3 = st.columns([2, 2, 2])
     with c1:
-        st.selectbox("🌍 Region", ["India", "North India", "South India", "East India", "West India"], key="aqi_region")
+        st.selectbox(
+            "🌍 Region",
+            ["India", "North India", "Central India", "East India",
+             "Northeast India", "West India", "South India"],
+            key="aqi_region",
+        )
     with c2:
-        st.selectbox("📅 Date Range", ["Today", "Last 7 days", "Last 30 days", "Custom"], key="aqi_date_range")
+        st.selectbox(
+            "📅 Date Range", ["Today"], key="aqi_date_range", disabled=True,
+            help="Only the latest snapshot is available until historical data is integrated.",
+        )
     with c3:
-        st.selectbox("💨 Pollutant", ["AQI (Overall)", "PM2.5", "PM10", "NO2", "SO2", "CO", "O3"], key="aqi_pollutant")
+        st.selectbox(
+            "💨 Pollutant", ["AQI (Overall)"], key="aqi_pollutant", disabled=True,
+            help="Per-pollutant views are not implemented yet; see the table for pollutant values.",
+        )
 
 
 def _render_summary_metrics(region: str) -> None:
@@ -188,14 +215,18 @@ def _render_summary_metrics(region: str) -> None:
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
         st.metric("📊 Avg AQI", f"{summary.avg_aqi:.0f}", region)
+    has_data = summary.station_count > 0
     with c2:
-        st.metric("🔺 Max AQI", str(summary.max_aqi), "Severe zone")
+        st.metric("🔺 Max AQI", str(summary.max_aqi),
+                  aqi_category(summary.max_aqi) if has_data else None, delta_color="off")
     with c3:
-        st.metric("🔻 Min AQI", str(summary.min_aqi), "Clean zone")
+        st.metric("🔻 Min AQI", str(summary.min_aqi),
+                  aqi_category(summary.min_aqi) if has_data else None, delta_color="off")
     with c4:
-        st.metric("🏭 Dominant", summary.dominant_pollutant, "Pollutant")
+        st.metric("🏭 Dominant", summary.dominant_pollutant, "Pollutant", delta_color="off")
     with c5:
-        st.metric("📡 Stations", str(summary.station_count), "Active Network")
+        st.metric("📡 Stations", str(summary.station_count),
+                  "Team dataset" if is_team_data("aqi") else "Demo data", delta_color="off")
 
 
 def _render_aqi_legend() -> None:
@@ -239,4 +270,4 @@ def _render_station_table(readings: list[Any]) -> None:
         for r in readings
     ]
     df = pd.DataFrame(rows)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    st.dataframe(df, width="stretch", hide_index=True)

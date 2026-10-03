@@ -1,7 +1,9 @@
 """
 dashboard/pages/aqi_forecast.py — AQI Forecast module page.
 
-Displays 72-hour AQI predictions with confidence intervals and model accuracy.
+Displays the backend's AQI forecast for any registered station. No trained
+model is integrated yet, so the backend returns a SIMULATED baseline; this page
+labels it as such and shows N/A for metrics that do not exist.
 """
 
 from __future__ import annotations
@@ -16,62 +18,66 @@ from dashboard.components import (
     render_page_header,
     render_page_footer,
     render_no_data,
+    render_stub_badge,
 )
-from dashboard.core.theme import (
-    PRIMARY,
-    TEXT_MUTED,
-)
+from dashboard.core.theme import PRIMARY
 from dashboard.services import forecast_service, surface_aqi_service
+from dashboard.services.data_sources import is_team_data
+from dashboard.services.forecast_service import ModelMetrics
 
-# Map station display names to their service station IDs
-_STATION_IDS = {
-    "Delhi – Anand Vihar": "DL001",
-    "Mumbai – Bandra Kurla": "MU001",
-    "Bengaluru – Silk Board": "BL001",
-}
+_HORIZONS = {"24 hours": 24, "48 hours": 48, "72 hours": 72}
 
 
 def render() -> None:
     """Render the AQI Forecast module page."""
     render_page_header(
         module_name="AQI Forecast",
-        subtitle="72-hour AQI predictions with calibrated confidence intervals",
+        subtitle="Station AQI outlook — simulated until a forecasting model is integrated",
         show_refresh_button=True,
     )
 
+    stations = forecast_service.get_stations()
+    if not stations:
+        render_no_data(
+            title="Station List Unavailable",
+            message="Could not load stations from the backend (GET /api/v1/stations). "
+                    "Start the FastAPI backend to view forecasts.",
+            icon="📡",
+        )
+        render_page_footer()
+        return
+
+    names = {s["station_id"]: s["station_name"] for s in stations}
+
     # ── Forecast Controls ─────────────────────────────────────────────────────
-    _render_controls()
+    selected_id, horizon_hours = _render_controls(names)
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
-    # Resolve active selected station ID
-    selected_name = st.session_state.get("fc_station", "Delhi – Anand Vihar")
-    selected_id = _STATION_IDS.get(selected_name, "DL001")
-    
-    # Resolve horizon hours
-    horizon_sel = st.session_state.get("fc_horizon", "72 hours")
-    horizon_hours = 72
-    if "24" in horizon_sel:
-        horizon_hours = 24
-    elif "48" in horizon_sel:
-        horizon_hours = 48
-
-    # ── Single Data Fetch ─────────────────────────────────────────────────────
-    forecast_steps = forecast_service.get_station_forecast(
-        station_id=selected_id,
-        horizon_hours=horizon_hours
-    )
+    # ── Single Data Fetch (one cached GET /forecast) ──────────────────────────
+    forecast_steps = forecast_service.get_station_forecast(selected_id, horizon_hours)
+    metrics = forecast_service.get_model_metrics(selected_id, horizon_hours)
     readings = surface_aqi_service.get_latest_readings()
+
+    if metrics is not None and metrics.r_squared is None:
+        render_info_notice(
+            "Simulated forecast: no forecasting model is integrated yet. The curve is a "
+            "deterministic diurnal baseline seeded from the station's latest AQI reading, "
+            "and the shaded band is illustrative — not a calibrated confidence interval."
+        )
 
     # ── Model Performance KPIs ────────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>📊 Model Performance</h4>", unsafe_allow_html=True)
-    _render_model_metrics()
+    _render_model_metrics(metrics)
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
     # ── Forecast chart ────────────────────────────────────────────────────────
-    st.markdown(f"<h4 style='color:{PRIMARY}'>📈 {horizon_hours}-Hour AQI Forecast</h4>", unsafe_allow_html=True)
-    render_forecast_line_chart(forecast_steps, title=f"Predictions: {selected_name}")
+    st.markdown(f"<h4 style='color:{PRIMARY}'>📈 {horizon_hours}-Hour AQI Outlook</h4>", unsafe_allow_html=True)
+    render_forecast_line_chart(
+        forecast_steps,
+        title=f"Simulated forecast: {names[selected_id]} ({selected_id})",
+    )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
@@ -80,48 +86,85 @@ def render() -> None:
 
     with left:
         st.markdown(f"<h4 style='color:{PRIMARY}'>🔬 Feature Importance</h4>", unsafe_allow_html=True)
-        _render_feature_importance()
+        _render_feature_importance(selected_id, horizon_hours)
 
     with right:
-        st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ Forecast Coverage Map</h4>", unsafe_allow_html=True)
+        st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ Station Coverage Map</h4>", unsafe_allow_html=True)
+        if not is_team_data("aqi"):
+            render_stub_badge()
         render_forecast_coverage_map(readings, key="forecast_coverage_map_widget")
 
     render_page_footer()
 
 
-def _render_controls() -> None:
+def _render_controls(names: dict[str, str]) -> tuple[str, int]:
+    """Render station / horizon / model controls; return (station_id, horizon_hours)."""
+    station_ids = list(names)
+    # Drop a stale selection (e.g. a station that no longer exists) instead of
+    # silently substituting another station.
+    if st.session_state.get("fc_station") not in station_ids:
+        st.session_state.pop("fc_station", None)
+
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.selectbox("📍 Station", ["Delhi – Anand Vihar", "Mumbai – Bandra Kurla", "Bengaluru – Silk Board"], key="fc_station")
+        selected_id = st.selectbox(
+            "📍 Station",
+            station_ids,
+            format_func=lambda sid: f"{names[sid]} ({sid})",
+            key="fc_station",
+        )
     with c2:
-        st.selectbox("⏱ Horizon", ["24 hours", "48 hours", "72 hours"], index=2, key="fc_horizon")
+        horizon_label = st.selectbox("⏱ Horizon", list(_HORIZONS), index=2, key="fc_horizon")
     with c3:
-        st.selectbox("🧠 Model", ["XGBoost v1 (Active)", "LSTM v0.2 (Experimental)"], key="fc_model")
+        st.selectbox(
+            "🧠 Model",
+            ["Simulated baseline (no forecasting model)"],
+            disabled=True,
+            help="Model selection becomes available once forecasting models are integrated.",
+        )
+    return selected_id, _HORIZONS[horizon_label]
 
 
-def _render_model_metrics() -> None:
-    metrics = forecast_service.get_model_metrics()
+def _fmt(value: float | None, spec: str) -> str:
+    return "N/A" if value is None else format(value, spec)
+
+
+def _render_model_metrics(metrics: ModelMetrics | None) -> None:
+    if metrics is None:
+        render_no_data(
+            title="Model Metadata Unavailable",
+            message="The backend did not return forecast metadata.",
+            icon="🧠",
+        )
+        return
+
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.metric("🧠 Model", "XGBoost v1", "Active")
+        st.metric("🧠 Model", metrics.model_version, help=metrics.model_name)
+        st.caption(metrics.model_name)
     with c2:
-        st.metric("📉 RMSE", f"{metrics.rmse:.1f}", "AQI units")
+        st.metric("📉 RMSE", _fmt(metrics.rmse, ".1f"))
     with c3:
-        st.metric("📉 MAE", f"{metrics.mae:.1f}", "AQI units")
+        st.metric("📉 MAE", _fmt(metrics.mae, ".1f"))
     with c4:
-        st.metric("📊 R²", f"{metrics.r_squared:.2f}", "Fit quality")
+        st.metric("📊 R²", _fmt(metrics.r_squared, ".2f"))
     with c5:
-        st.metric("📅 Last Trained", "2026-06-01", "Model Registry")
+        st.metric("📅 Last Trained", metrics.training_date or "N/A")
+    if metrics.r_squared is None:
+        st.caption("Metrics are N/A: no forecasting model has been validated yet.")
 
 
-def _render_feature_importance() -> None:
-    features = forecast_service.get_feature_importances()
+def _render_feature_importance(station_id: str, horizon_hours: int) -> None:
+    features = forecast_service.get_feature_importances(station_id, horizon_hours)
+    if not features:
+        render_no_data(
+            title="No Feature Importances",
+            message="Available once a forecasting model is integrated.",
+            icon="🔬",
+        )
+        return
     df = pd.DataFrame(features).rename(columns={"feature": "Feature", "importance": "Importance"})
     df["Importance %"] = df["Importance"].map(lambda x: f"{x:.0%}")
     df = df.sort_values("Importance", ascending=False).reset_index(drop=True)
-    st.dataframe(
-        df[["Feature", "Importance %"]],
-        use_container_width=True,
-        hide_index=True,
-    )
-    st.caption("SHAP global feature importances calculated across validation dataset.")
+    st.dataframe(df[["Feature", "Importance %"]], width="stretch", hide_index=True)
+    st.caption("Global feature importances reported by the forecast model.")

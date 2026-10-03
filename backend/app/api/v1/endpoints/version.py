@@ -7,8 +7,8 @@ Use cases:
   - Post-deployment verification: confirm the correct version was deployed.
   - Canary analysis: compare two instances to verify gradual rollout.
   - Incident response: know immediately which build is affected.
-  - Feature flag awareness: dashboard can conditionally render ML features
-    based on ENABLE_ML_ENDPOINTS (future extension).
+  - Data-source awareness: `data_sources` tells the dashboard which domains
+    serve demo data and which serve the team's dataset / model outputs.
 
 This endpoint has no side effects, requires no database access, and
 should be extremely low-latency (< 1 ms). It is safe to call frequently.
@@ -19,6 +19,7 @@ import sys
 from fastapi import APIRouter, Depends
 
 from app.core.config import Settings, get_settings
+from app.data.sources import sources
 from app.schemas.version import VersionResponse
 
 router = APIRouter()
@@ -45,4 +46,5 @@ async def get_version(
         api_version="v1",
         environment=settings.ENVIRONMENT,
         python_version=sys.version.split()[0],
+        data_sources=sources.describe(),
     )

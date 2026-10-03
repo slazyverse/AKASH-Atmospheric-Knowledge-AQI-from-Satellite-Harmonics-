@@ -35,6 +35,7 @@ class StationReading(BaseModel):
     Pollutant concentrations follow CPCB reporting units:
       PM2.5, PM10, NO2, SO2, O3 — µg/m³
       CO                         — mg/m³
+    A pollutant is null when the station did not report it (never imputed).
     """
 
     station_id: str = Field(
@@ -55,12 +56,12 @@ class StationReading(BaseModel):
         ),
         examples=["Very Poor"],
     )
-    pm25: float = Field(ge=0, description="PM2.5 concentration in µg/m³.")
-    pm10: float = Field(ge=0, description="PM10 concentration in µg/m³.")
-    no2: float  = Field(ge=0, description="NO₂ concentration in µg/m³.")
-    so2: float  = Field(ge=0, description="SO₂ concentration in µg/m³.")
-    co: float   = Field(ge=0, description="CO concentration in mg/m³.")
-    o3: float   = Field(ge=0, description="O₃ concentration in µg/m³.")
+    pm25: float | None = Field(default=None, ge=0, description="PM2.5 concentration in µg/m³.")
+    pm10: float | None = Field(default=None, ge=0, description="PM10 concentration in µg/m³.")
+    no2: float | None  = Field(default=None, ge=0, description="NO₂ concentration in µg/m³.")
+    so2: float | None  = Field(default=None, ge=0, description="SO₂ concentration in µg/m³.")
+    co: float | None   = Field(default=None, ge=0, description="CO concentration in mg/m³.")
+    o3: float | None   = Field(default=None, ge=0, description="O₃ concentration in µg/m³.")
     recorded_at: datetime = Field(description="UTC timestamp of this observation.")
 
     model_config = {

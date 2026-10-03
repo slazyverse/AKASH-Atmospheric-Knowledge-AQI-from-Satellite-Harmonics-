@@ -19,7 +19,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from dashboard.services.api_client import APIClient
+from dashboard.services.api_client import APIClient, APIError
 
 
 @dataclass
@@ -49,6 +49,18 @@ class XAIService:
 
     def __init__(self, client: APIClient | None = None) -> None:
         self._client = client or APIClient()
+
+    def get_model_importance(self) -> dict[str, Any] | None:
+        """
+        Trained-model metrics + global importances from GET /xai/global-importance.
+
+        Returns None when the backend has no model artefact loaded (404) or is
+        unreachable — never substitutes illustrative values.
+        """
+        try:
+            return self._client.get("/xai/global-importance").data
+        except APIError:
+            return None
 
     def get_shap_values(
         self,
