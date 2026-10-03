@@ -13,8 +13,8 @@ Design decisions:
     This gives full control over active-state styling and keeps routing purely
     in session state — no file-system routing conflicts with Streamlit's
     native multi-page runner.
-  - API status indicator is purely cosmetic in Day 2; it will probe the live
-    backend health endpoint from Day 3 onwards.
+  - API status indicator probes GET /api/v1/version (reachability only; each
+    page's source badge shows what data is actually served).
 """
 
 from __future__ import annotations
@@ -141,7 +141,7 @@ def _render_api_status() -> None:
     """
     Render a visual indicator for backend API connectivity.
 
-    Day 3: Call APIClient().health_check(timeout=1.0) to get the live status.
+    Calls APIClient().health_check() (GET /version) to get the reachability status.
     Throttled to run at most once every 10 seconds to keep UI responsive.
     """
     client = APIClient()
@@ -158,9 +158,9 @@ def _render_api_status() -> None:
             st.session_state["last_successful_sync"] = now
 
     if api_reachable is True:
-        dot_color, label, detail = STATUS_OK, "Backend Connected", "Live data active"
+        dot_color, label, detail = STATUS_OK, "Backend Connected", "See source badges per page"
     else:
-        dot_color, label, detail = STATUS_ERROR, "Backend Offline", "Using stub fallback data"
+        dot_color, label, detail = STATUS_ERROR, "Backend Offline", "All data unavailable"
 
     st.markdown(
         f"""
@@ -192,7 +192,7 @@ def _render_api_status() -> None:
         freshness_time = last_sync.strftime("%Y-%m-%d %H:%M:%S")
         freshness_detail = f"⏱ Updated: {freshness_time}<br><span style='font-size:0.7rem'>Sync successful</span>"
     else:
-        freshness_detail = "⏱ No live data yet<br><span style='font-size:0.7rem'>Awaiting connection</span>"
+        freshness_detail = "⏱ Not connected yet<br><span style='font-size:0.7rem'>Awaiting connection</span>"
 
     st.markdown(
         f"""
@@ -219,7 +219,6 @@ def _render_sidebar_footer() -> None:
         <div style="padding:8px 4px;font-size:0.68rem;color:{TEXT_MUTED}">
           <div>📡 VAYU-DRISHTI Platform</div>
           <div style="margin-top:4px">Environment: <strong>Development</strong></div>
-          <div style="margin-top:4px">Sprint: <strong>Day 4 — Charts & GIS Maps</strong></div>
           <div style="margin-top:8px;color:{TEXT_MUTED}">
             © 2026 AKASH Project Team
           </div>

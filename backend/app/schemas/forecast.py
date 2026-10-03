@@ -20,6 +20,7 @@ Models:
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -79,7 +80,7 @@ class ModelMetrics(BaseModel):
         description="Model name.",
         examples=["Simulated baseline (no forecasting model)"],
     )
-    model_version: str = Field(description="Version of the model artefact.", examples=["stub"])
+    model_version: str = Field(description="Version of the model artefact.", examples=["simulated"])
     rmse: float | None = Field(
         default=None, ge=0, description="Root Mean Squared Error in AQI units."
     )
@@ -101,7 +102,7 @@ class ModelMetrics(BaseModel):
         "json_schema_extra": {
             "example": {
                 "model_name": "Simulated baseline (no forecasting model)",
-                "model_version": "stub",
+                "model_version": "simulated",
                 "rmse": None,
                 "mae": None,
                 "r_squared": None,
@@ -146,6 +147,17 @@ class ForecastResponse(BaseModel):
     feature_importances: list[FeatureImportance] = Field(
         description="Top feature importances driving this model's predictions.",
     )
+    forecast_kind: Literal["simulated", "model"] = Field(
+        default="simulated",
+        description=(
+            "'simulated' = synthetic baseline (no forecasting model); 'model' = output of a "
+            "real forecasting model. A same-day estimator is never reported here."
+        ),
+    )
+    based_on_observation_at: datetime | None = Field(
+        default=None,
+        description="Timestamp of the station observation the forecast was seeded from.",
+    )
 
     model_config = {
         "protected_namespaces": (),
@@ -157,7 +169,7 @@ class ForecastResponse(BaseModel):
                 "steps": [],
                 "model_metrics": {
                     "model_name": "Simulated baseline (no forecasting model)",
-                    "model_version": "stub",
+                    "model_version": "simulated",
                     "rmse": None,
                     "mae": None,
                     "r_squared": None,

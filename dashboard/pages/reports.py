@@ -1,154 +1,77 @@
 """
-dashboard/pages/reports.py — Reports module page.
+dashboard/pages/reports.py — Reports & data export page.
 
-Provides access to generated analytical reports and on-demand export tools.
-
-Day 2 Scope: Report list table, template selector, generation form placeholder.
-Day 3 Scope: Actual PDF download links, scheduled report configuration.
+Report generation (PDF bulletins, scheduled reports) is not implemented, so
+no report list is shown. What exists today is exporting the data currently
+served by the API as CSV — each export is labelled with its source kind.
 """
 
 from __future__ import annotations
 
-from datetime import datetime
-
 import pandas as pd
 import streamlit as st
 
-from dashboard.components.empty_state import render_coming_soon, render_stub_badge
-from dashboard.components.error_state import render_info_notice
-from dashboard.components.footer import render_page_footer
-from dashboard.components.header import render_page_header
-from dashboard.core.theme import (
-    BG_ELEVATED,
-    BORDER_DEFAULT,
-    PRIMARY,
-    TEXT_MUTED,
-    TEXT_SECONDARY,
+from dashboard.components import (
+    render_info_notice,
+    render_page_footer,
+    render_page_header,
+    render_source_badge,
 )
-from dashboard.services import report_service
+from dashboard.core.theme import PRIMARY
+from dashboard.services import fire_service, hcho_service, surface_aqi_service
+from dashboard.services.data_sources import source_kind
 
 
 def render() -> None:
-    """Render the Reports module page."""
+    """Render the Reports & export page."""
     render_page_header(
         module_name="Reports",
-        subtitle="On-demand and scheduled analytical reports for AQI monitoring",
+        subtitle="Data exports from the API — report generation is not implemented yet",
+        show_refresh_button=False,
         show_export_button=False,
     )
 
+    st.markdown(f"<h4 style='color:{PRIMARY}'>📋 Report Generation</h4>", unsafe_allow_html=True)
     render_info_notice(
-        "Placeholder: report generation is not implemented yet. "
-        "The report list and templates below are hardcoded examples."
+        "Unavailable: PDF bulletins and scheduled reports are not implemented. "
+        "No report history exists, so none is listed."
     )
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-    # ── Report Stats ──────────────────────────────────────────────────────────
-    _render_report_stats()
-
     st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+    st.markdown(f"<h4 style='color:{PRIMARY}'>⬇️ Data Exports (CSV)</h4>", unsafe_allow_html=True)
 
-    # ── Tab layout ────────────────────────────────────────────────────────────
-    tab1, tab2, tab3 = st.tabs(["📄 Available Reports", "🛠️ Generate Report", "⏰ Scheduled Reports"])
-
-    with tab1:
-        _render_report_list()
-
-    with tab2:
-        _render_generate_form()
-
-    with tab3:
-        render_coming_soon(
-            "Scheduled Reports",
-            planned_day="Day 6",
-            features=[
-                "Daily AQI bulletin — auto-sent at 08:00 IST",
-                "Weekly summary — every Monday",
-                "Alert-triggered reports on fire events",
-                "Email recipients configuration",
-            ],
-        )
+    readings = surface_aqi_service.get_latest_readings()
+    _export(
+        "Station readings (latest per station)", "aqi",
+        pd.DataFrame([vars(r) for r in readings]), "station_readings",
+    )
+    hotspots = hcho_service.get_hotspots(min_confidence=0.0)
+    _export(
+        "HCHO hotspot clusters", "hcho",
+        pd.DataFrame([vars(h) for h in hotspots]), "hcho_hotspots",
+    )
+    fires = fire_service.get_active_fires(min_frp=0.0, hours=168)
+    _export(
+        "Fire detections (last 7 days of the source)", "fire",
+        pd.DataFrame([vars(f) for f in fires]), "fire_detections",
+    )
 
     render_page_footer(show_data_sources=False)
 
 
-def _render_report_stats() -> None:
-    reports = report_service.list_reports()
-    c1, c2, c3, c4 = st.columns(4)
+def _export(title: str, domain: str, df: pd.DataFrame, stem: str) -> None:
+    """One export row: source badge + download button (disabled when empty)."""
+    c1, c2 = st.columns([3, 2])
     with c1:
-        st.metric("📄 Total Reports", str(len(reports)), "Available")
+        st.markdown(f"**{title}** — {len(df)} row(s)")
+        render_source_badge(domain)
     with c2:
-        pdf_count = sum(1 for r in reports if r.format == "pdf")
-        st.metric("📕 PDF Reports", str(pdf_count), "")
-    with c3:
-        csv_count = sum(1 for r in reports if r.format == "csv")
-        st.metric("📊 CSV Exports", str(csv_count), "")
-    with c4:
-        st.metric("⏰ Scheduled", "0", "Awaiting Day 6")
-
-
-def _render_report_list() -> None:
-    st.markdown(f"<h4 style='color:{PRIMARY}'>📋 Report Library</h4>", unsafe_allow_html=True)
-    render_stub_badge()
-
-    reports = report_service.list_reports()
-    rows = [
-        {
-            "ID": r.report_id,
-            "Title": r.title,
-            "Type": r.report_type,
-            "Format": r.format.upper(),
-            "Size": f"{r.size_kb} KB",
-            "Status": r.status.title(),
-            "Generated": r.generated_at.strftime("%Y-%m-%d %H:%M"),
-        }
-        for r in reports
-    ]
-    df = pd.DataFrame(rows)
-    st.dataframe(df, width="stretch", hide_index=True)
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    render_coming_soon(
-        "Report Download",
-        planned_day="Day 3",
-        features=[
-            "One-click PDF download from the table",
-            "Preview modal for report content",
-            "Share link generation",
-        ],
-    )
-
-
-def _render_generate_form() -> None:
-    st.markdown(f"<h4 style='color:{PRIMARY}'>🛠️ Generate On-Demand Report</h4>", unsafe_allow_html=True)
-    render_stub_badge()
-
-    templates = report_service.get_report_templates()
-
-    template_options = {t["name"]: t["id"] for t in templates}
-    selected_name = st.selectbox("📄 Report Template", list(template_options.keys()), key="report_template")
-    selected_template = next(t for t in templates if t["name"] == selected_name)
-    st.caption(selected_template["description"])
-
-    c1, c2 = st.columns(2)
-    with c1:
-        st.date_input("📅 From Date", key="report_from")
-    with c2:
-        st.date_input("📅 To Date", key="report_to")
-
-    st.selectbox(
-        "🌍 Region",
-        ["All India", "North India", "South India", "East India", "West India"],
-        key="report_region",
-    )
-    st.selectbox("📁 Output Format", ["PDF", "CSV", "JSON"], key="report_format")
-
-    if st.button("⚙️ Generate Report", key="btn_generate_report", width="content"):
-        result = report_service.generate_report(
-            template_id=template_options[selected_name],
+        st.download_button(
+            "Download CSV",
+            data=df.to_csv(index=False).encode("utf-8"),
+            file_name=f"{stem}_{source_kind(domain)}.csv",
+            mime="text/csv",
+            disabled=df.empty,
+            key=f"export_{stem}",
+            width="stretch",
         )
-        st.success(f"✅ Report queued (Job ID: {result['job_id']}). Live generation available in Day 3.")
-
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    render_info_notice("Report generation is a stub in Day 2. The form captures parameters but does not call the API.")

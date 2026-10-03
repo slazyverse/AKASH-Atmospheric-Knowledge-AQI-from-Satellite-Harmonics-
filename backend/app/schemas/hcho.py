@@ -130,3 +130,21 @@ class HCHOHotspotsResponse(BaseModel):
             }
         }
     }
+
+
+# ── Station-collocated HCHO trend ──────────────────────────────────────────────
+
+class HCHOTrendPoint(BaseModel):
+    """Daily mean of the satellite HCHO column sampled at the dataset's stations."""
+
+    obs_date: date = Field(description="Observation date (UTC).")
+    mean_column_density: float = Field(ge=0, description="Mean HCHO column, 10¹⁵ molecules/cm².")
+    station_count: int = Field(ge=1, description="Stations with an HCHO value that day.")
+
+
+class HCHOTrendResponse(BaseModel):
+    """Envelope for GET /api/v1/hcho/trend."""
+
+    unit: str = Field(default="1e15 molecules/cm2", description="Unit of mean_column_density.")
+    count: int = Field(ge=0, description="Number of daily points.")
+    points: list[HCHOTrendPoint] = Field(description="Daily points, oldest first.")

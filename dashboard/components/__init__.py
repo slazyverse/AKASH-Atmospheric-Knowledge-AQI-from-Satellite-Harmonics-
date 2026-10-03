@@ -4,7 +4,6 @@ from dashboard.components.empty_state import (
     render_coming_soon,
     render_no_data,
     render_no_results,
-    render_stub_badge,
 )
 from dashboard.components.error_state import (
     render_api_error,
@@ -23,6 +22,7 @@ from dashboard.components.loading import (
     with_loading,
 )
 from dashboard.components.sidebar import render_sidebar
+from dashboard.components.source_badge import render_source_badge
 
 # GIS Maps
 from dashboard.components.map import (
@@ -66,7 +66,8 @@ __all__ = [
     "render_no_data",
     "render_no_results",
     "render_coming_soon",
-    "render_stub_badge",
+    # Source status
+    "render_source_badge",
     # GIS Maps
     "render_aqi_spatial_map",
     "render_hcho_spatial_map",

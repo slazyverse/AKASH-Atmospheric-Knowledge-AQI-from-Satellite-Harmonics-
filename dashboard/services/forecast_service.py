@@ -3,8 +3,9 @@ dashboard/services/forecast_service.py - AQI Forecast service interface.
 
 Fetches forecasts, model metadata and the station list from the backend.
 
-The backend currently returns a SIMULATED baseline (no forecasting model
-exists), with null metrics and no feature importances. This module passes
+The backend currently returns a SIMULATED baseline (forecast_kind
+"simulated" — no forecasting model exists), with null metrics and no
+feature importances. This module passes
 that through faithfully: it never substitutes its own forecast or metrics, so
 when the backend is unreachable the page shows an "unavailable" state instead.
 """
@@ -113,6 +114,16 @@ class ForecastService:
             training_date=m.get("training_date"),
             validation_period=m.get("validation_period"),
         )
+
+    def get_forecast_info(self, station_id: str, horizon_hours: int = 72) -> dict[str, Any]:
+        """forecast_kind ('simulated' | 'model') and the seed observation time; {} if unavailable."""
+        payload = _get_forecast_payload_cached(station_id, horizon_hours)
+        if not payload:
+            return {}
+        return {
+            "forecast_kind": payload.get("forecast_kind", "simulated"),
+            "based_on_observation_at": payload.get("based_on_observation_at"),
+        }
 
     def get_feature_importances(self, station_id: str, horizon_hours: int = 72) -> list[dict[str, Any]]:
         """Return the model's feature importances ([] when none are available)."""

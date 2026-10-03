@@ -185,6 +185,17 @@ class StationDataset:
                 latest[o.station_id] = o
         return list(latest.values())
 
+    @property
+    def observations(self) -> tuple[Observation, ...]:
+        return tuple(self._observations)
+
+    def observations_for(self, station_id: str) -> list[Observation]:
+        """All observations of one station, oldest first."""
+        return sorted(
+            (o for o in self._observations if o.station_id == station_id),
+            key=lambda o: o.observed_at,
+        )
+
     def latest_for(self, station_id: str) -> Observation | None:
         matches = [o for o in self._observations if o.station_id == station_id]
         return max(matches, key=lambda o: o.observed_at, default=None)

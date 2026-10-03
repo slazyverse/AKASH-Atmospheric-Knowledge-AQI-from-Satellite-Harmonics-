@@ -1,94 +1,64 @@
 """
 backend/app/services/fire_service.py — Fire Monitoring data service.
 
-Business logic for active fire detection data from MODIS and VIIRS satellites.
+Detections come only from the resolved fire source (app.data.sources): a
+configured fire file (contract in app.data.fires) or the bundled placeholder
+fixture. No team fire source exists yet.
 
-Current state: serves 5 static demo (stub) events and 2 illustrative alerts —
-NOT real FIRMS detections, and no smoke-trajectory model exists. `hours_ago`
-gives each demo event a detection age so the `hours` filter is meaningful.
-Planned: replace with a real fire-detection source.
+The `hours` window ends at the source's latest detection (`as_of`), not at the
+wall clock, so a file snapshot is filtered consistently.
+
+Alerts are derived from detections by a documented FRP rule only:
+  FRP >= 200 MW → critical · FRP >= 100 MW → high · otherwise no alert.
+No AQI-impact score or smoke trajectory is produced — no such model exists.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any
+from datetime import timedelta
+from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.core.regions import region_matches
+from app.data.sources import sources
 from app.schemas.fire import FireAlertItem, FireEventItem, FireResponse
+
+if TYPE_CHECKING:
+    from app.data.fires import FireRecord
 
 logger = get_logger(__name__)
 
-# ── Demo (stub) data ───────────────────────────────────────────────────────────
+ALERT_RULES: tuple[tuple[float, str], ...] = ((200.0, "critical"), (100.0, "high"))
 
-_STUB_EVENTS: list[dict[str, Any]] = [
-    {
-        "event_id": "F-2024-001", "hours_ago": 2.0,
-        "latitude": 23.312, "longitude": 85.334,
-        "frp": 142.4, "brightness": 328.7,
-        "satellite": "VIIRS-SNPP", "confidence": "high",
-        "land_cover": "forest", "state": "Jharkhand", "district": "Ranchi",
-    },
-    {
-        "event_id": "F-2024-002", "hours_ago": 5.5,
-        "latitude": 21.145, "longitude": 81.684,
-        "frp": 87.2, "brightness": 312.4,
-        "satellite": "MODIS", "confidence": "nominal",
-        "land_cover": "cropland", "state": "Chhattisgarh", "district": "Bilaspur",
-    },
-    {
-        "event_id": "F-2024-003", "hours_ago": 9.0,
-        "latitude": 27.891, "longitude": 95.421,
-        "frp": 210.1, "brightness": 341.2,
-        "satellite": "VIIRS-NOAA20", "confidence": "high",
-        "land_cover": "forest", "state": "Arunachal Pradesh", "district": "Lohit",
-    },
-    {
-        "event_id": "F-2024-004", "hours_ago": 14.0,
-        "latitude": 15.312, "longitude": 75.712,
-        "frp": 34.6, "brightness": 289.1,
-        "satellite": "MODIS", "confidence": "nominal",
-        "land_cover": "grassland", "state": "Karnataka", "district": "Dharwad",
-    },
-    {
-        "event_id": "F-2024-005", "hours_ago": 20.0,
-        "latitude": 29.934, "longitude": 78.162,
-        "frp": 58.3, "brightness": 301.6,
-        "satellite": "VIIRS-SNPP", "confidence": "high",
-        "land_cover": "forest", "state": "Uttarakhand", "district": "Haridwar",
-    },
-]
 
-_STUB_ALERTS: list[dict[str, Any]] = [
-    {
-        "alert_id": "A-001",
-        "fire_event_id": "F-2024-001",
-        "severity": "critical",
-        "aqi_impact_score": 87.4,
-        "message": (
-            "Extreme fire activity in Jharkhand forest. "
-            "AQI spike expected in 6–8 hours at Ranchi and Bokaro stations."
-        ),
-    },
-    {
-        "alert_id": "A-002",
-        "fire_event_id": "F-2024-003",
-        "severity": "high",
-        "aqi_impact_score": 62.1,
-        "message": (
-            "Large fire front detected near Arunachal Pradesh. "
-            "Smoke trajectory forecast towards Assam within 4 hours."
-        ),
-    },
-]
+def _severity(frp: float) -> str | None:
+    for threshold, severity in ALERT_RULES:
+        if frp >= threshold:
+            return severity
+    return None
+
+
+def _event(r: FireRecord) -> FireEventItem:
+    return FireEventItem(
+        event_id=r.event_id,
+        latitude=r.latitude,
+        longitude=r.longitude,
+        frp=r.frp,
+        brightness=r.brightness,
+        satellite=r.satellite,
+        confidence=r.confidence,
+        land_cover=r.land_cover,
+        state=r.state,
+        district=r.district,
+        detected_at=r.detected_at,
+    )
 
 
 class FireService:
     """
     Service class for active fire detection and alert data.
 
-    Returns composite responses containing both fire events and high-severity alerts
+    Returns composite responses containing both fire events and rule-based alerts
     to minimise round-trips from dashboard consumers.
     """
 
@@ -99,57 +69,64 @@ class FireService:
         hours: int = 24,
     ) -> FireResponse:
         """
-        Return active fire detections and alerts within the specified time window.
+        Return fire detections and FRP-rule alerts within the time window.
 
         Args:
             region:  "All India" (all), a zone ("North", "Northeast India", ...),
                      or a state / district name (case-insensitive).
             min_frp: Minimum Fire Radiative Power threshold in megawatts.
-            hours:   Time window in hours (detections older than this are excluded).
+            hours:   Window length in hours, ending at the source's latest detection.
 
         Returns:
-            FireResponse containing the filtered events and the alerts that
-            refer to those events.
+            FireResponse with the filtered events and the alerts for those events.
         """
-        now = datetime.now(tz=timezone.utc)
-        window_start = now - timedelta(hours=hours)
+        records = sources.fires or []
+        as_of = max((r.detected_at for r in records), default=None)
 
         logger.info(
             "Fetching fire data",
             region=region,
             min_frp=min_frp,
             hours=hours,
+            as_of=str(as_of),
         )
 
-        filtered_events: list[FireEventItem] = []
-        for ev in _STUB_EVENTS:
-            detected_at = now - timedelta(hours=ev["hours_ago"])
-            if (
-                ev["frp"] >= min_frp
-                and detected_at >= window_start
-                and region_matches(region, ev["state"], ev["district"])
-            ):
-                fields = {k: v for k, v in ev.items() if k != "hours_ago"}
-                filtered_events.append(FireEventItem(**fields, detected_at=detected_at))
+        window_start = as_of - timedelta(hours=hours) if as_of else None
+        selected = [
+            r for r in records
+            if r.frp >= min_frp
+            and window_start is not None and r.detected_at >= window_start
+            and region_matches(region, r.state, r.district)
+        ]
 
-        returned_ids = {ev.event_id for ev in filtered_events}
         alerts = [
-            FireAlertItem(**{**al, "issued_at": now})
-            for al in _STUB_ALERTS
-            if al["fire_event_id"] in returned_ids
+            FireAlertItem(
+                alert_id=f"ALERT-{r.event_id}",
+                fire_event_id=r.event_id,
+                severity=severity,
+                aqi_impact_score=None,
+                message=(
+                    f"{r.satellite} detection with FRP {r.frp:.0f} MW "
+                    f"in {r.district}, {r.state}."
+                ),
+                issued_at=r.detected_at,
+            )
+            for r in selected
+            if (severity := _severity(r.frp)) is not None
         ]
 
         logger.debug(
             "Fire data query complete",
-            events_returned=len(filtered_events),
+            events_returned=len(selected),
             alerts_returned=len(alerts),
         )
 
         return FireResponse(
-            total_events=len(filtered_events),
+            total_events=len(selected),
             total_alerts=len(alerts),
             hours_window=hours,
-            events=filtered_events,
+            as_of=as_of,
+            events=[_event(r) for r in selected],
             alerts=alerts,
         )
 
