@@ -15,7 +15,7 @@ none exists today, so no raster layer is shown.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, List
 
 import folium
@@ -52,7 +52,7 @@ def _val(value: Any, unit: str = "") -> str:
 
 def _add_raster_layer(m: folium.Map, source: RasterLayerSource, opacity: float) -> None:
     """Add a raster overlay only if a real tile source is configured (never a placeholder)."""
-    tile_url = source.tile_url(datetime.utcnow())
+    tile_url = source.tile_url(datetime.now(timezone.utc))
     if tile_url is None:
         return
     folium.raster_layers.TileLayer(

@@ -13,7 +13,7 @@ API endpoints consumed:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Any
 
@@ -37,7 +37,7 @@ class AQIReading:
     so2: float | None              # µg/m³
     co: float | None               # mg/m³
     o3: float | None               # µg/m³
-    recorded_at: datetime = field(default_factory=datetime.utcnow)
+    recorded_at: datetime          # observation time from the source (never "now")
 
 
 @dataclass

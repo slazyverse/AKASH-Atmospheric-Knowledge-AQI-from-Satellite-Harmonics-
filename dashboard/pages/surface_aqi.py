@@ -107,13 +107,16 @@ def render() -> None:
         render_page_footer()
         return
 
-    by_name = {r.station_name: r for r in readings}
+    # Keyed by station ID: station names are not guaranteed unique across networks
+    by_id = {r.station_id: r for r in readings}
     c1, _ = st.columns([2, 4])
     with c1:
-        selected_station = st.selectbox(
-            "Select Station for Temporal Analysis", list(by_name), key="aqi_analysis_station"
+        selected_id = st.selectbox(
+            "Select Station for Temporal Analysis", list(by_id), key="aqi_analysis_station",
+            format_func=lambda sid: f"{by_id[sid].station_name} ({sid})",
         )
-    station = by_name.get(selected_station, readings[0])
+    station = by_id.get(selected_id, readings[0])
+    selected_station = station.station_name
     days = _TREND_WINDOWS[st.session_state.get("aqi_trend_window", "Last 30 days")]
     history = surface_aqi_service.get_time_series(station.station_id, days=days)
     history_df = _history_frame(history)

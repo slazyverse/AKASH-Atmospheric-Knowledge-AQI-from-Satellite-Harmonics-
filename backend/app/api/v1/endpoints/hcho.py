@@ -126,8 +126,9 @@ async def get_hcho_hotspots(
     description=(
         "Daily mean of the satellite HCHO column sampled at the station dataset's stations "
         "(10¹⁵ molecules/cm²), over the last `days` days of the source. Derived from the "
-        "resolved station dataset (team output or placeholder — see GET /api/v1/sources); "
-        "an empty `points` list means the source has no HCHO values."
+        "resolved station dataset (team output or placeholder — see GET /api/v1/sources). "
+        "Small negative retrievals are kept so the mean is unbiased; an empty `points` "
+        "list means the source has no HCHO values."
     ),
     tags=["hcho"],
 )

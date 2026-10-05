@@ -97,9 +97,9 @@ class HCHOService:
         by_day: dict[date, list[float]] = defaultdict(list)
         for o in ds.observations:
             day = o.observed_at.date()
-            # Negative columns are valid TROPOMI retrieval noise but not meaningful
-            # as a mean "concentration" for display; they are excluded, not altered.
-            if day >= start and o.hcho_mol_m2 is not None and o.hcho_mol_m2 >= 0:
+            # Small negative columns are valid TROPOMI retrieval noise; they are kept,
+            # because dropping them would bias the daily mean upwards.
+            if day >= start and o.hcho_mol_m2 is not None:
                 by_day[day].append(o.hcho_mol_m2)
 
         points = [

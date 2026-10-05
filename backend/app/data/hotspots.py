@@ -83,6 +83,12 @@ def _parse(item: Any, index: int) -> HotspotRecord:
             observed_at.astimezone(UTC) if observed_at.tzinfo else observed_at.replace(tzinfo=UTC)
         )
 
+    stations = item.get("stations")
+    if stations is None:
+        stations = []
+    elif not isinstance(stations, list):
+        raise HotspotFileError(f"Cluster #{index} has 'stations' that is not a list.")
+
     count = _number(item.get("station_count"))
     return HotspotRecord(
         hotspot_id=f"HS-{item['cluster_id']}",
@@ -90,7 +96,7 @@ def _parse(item: Any, index: int) -> HotspotRecord:
         longitude=lon,
         column_density=hcho_mol_m2_to_1e15_molec_cm2(hcho),
         station_count=int(count) if count is not None else None,
-        stations=tuple(str(s) for s in item.get("stations", [])),
+        stations=tuple(str(s) for s in stations),
         radius_km=radius if radius is not None and radius >= 0 else None,
         confidence=confidence,
         source_type=str(item.get("source_type") or "unknown"),

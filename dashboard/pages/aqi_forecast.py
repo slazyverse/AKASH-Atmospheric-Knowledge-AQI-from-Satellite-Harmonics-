@@ -66,7 +66,8 @@ def render() -> None:
             f"Seeded from the station observation at {info['based_on_observation_at'][:16]} UTC "
             f"(station data: {source_label('aqi')})."
         )
-    if info.get("forecast_kind", "simulated") == "simulated":
+    simulated = info.get("forecast_kind", "simulated") == "simulated"
+    if simulated:
         render_info_notice(
             "Simulated forecast: no forecasting model is integrated yet. The curve is a "
             "deterministic diurnal baseline seeded from the station's latest AQI reading, "
@@ -83,7 +84,8 @@ def render() -> None:
     st.markdown(f"<h4 style='color:{PRIMARY}'>📈 {horizon_hours}-Hour AQI Outlook</h4>", unsafe_allow_html=True)
     render_forecast_line_chart(
         forecast_steps,
-        title=f"Simulated forecast: {names[selected_id]} ({selected_id})",
+        title=f"{'Simulated forecast' if simulated else 'Model forecast'}: "
+              f"{names[selected_id]} ({selected_id})",
     )
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)

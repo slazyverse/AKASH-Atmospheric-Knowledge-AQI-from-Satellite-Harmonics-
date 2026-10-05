@@ -138,7 +138,12 @@ class HCHOTrendPoint(BaseModel):
     """Daily mean of the satellite HCHO column sampled at the dataset's stations."""
 
     obs_date: date = Field(description="Observation date (UTC).")
-    mean_column_density: float = Field(ge=0, description="Mean HCHO column, 10¹⁵ molecules/cm².")
+    mean_column_density: float = Field(
+        description=(
+            "Mean HCHO column, 10¹⁵ molecules/cm². Includes small negative retrievals "
+            "(TROPOMI noise), so the mean is unbiased and may be negative in clean air."
+        ),
+    )
     station_count: int = Field(ge=1, description="Stations with an HCHO value that day.")
 
 

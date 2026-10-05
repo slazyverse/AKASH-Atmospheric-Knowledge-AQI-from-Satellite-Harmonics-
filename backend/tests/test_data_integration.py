@@ -167,6 +167,11 @@ class TestDatasetLoader:
         with pytest.raises(DatasetError, match="not found"):
             load_dataset(tmp_path / "nope.csv")
 
+    def test_ragged_row_is_skipped_not_fatal(self, tmp_path: Path) -> None:
+        # csv.DictReader fills a short row's missing cells with None
+        ds = load_dataset(_write(tmp_path / "r.csv", [V1_HEADER, V1_ROWS[0], "TST_009,Short"]))
+        assert len(ds) == 1
+
     def test_missing_required_columns(self, tmp_path: Path) -> None:
         path = _write(tmp_path / "bad.csv", ["Station ID,Station Name,AQI", "A,B,10"])
         with pytest.raises(DatasetError, match="missing required columns") as err:
@@ -205,6 +210,12 @@ class TestHotspotLoader:
         path.write_text("[]", encoding="utf-8")
         assert load_hotspots(path) == []
 
+    def test_null_stations_means_none_listed(self, tmp_path: Path) -> None:
+        path = tmp_path / "c.json"
+        path.write_text(json.dumps([dict(CLUSTERS[1], stations=None)]), encoding="utf-8")
+        (record,) = load_hotspots(path)
+        assert record.stations == ()
+
     @pytest.mark.parametrize(
         ("payload", "message"),
         [
@@ -214,6 +225,8 @@ class TestHotspotLoader:
              "invalid coordinates"),
             ('[{"cluster_id": 0, "mean_latitude": 1, "mean_longitude": 2, "mean_hcho": 1e-4,'
              ' "confidence": 1.7}]', "confidence"),
+            ('[{"cluster_id": 0, "mean_latitude": 1, "mean_longitude": 2, "mean_hcho": 1e-4,'
+             ' "stations": 5}]', "not a list"),
             ("not json", "Cannot read"),
         ],
     )
@@ -326,6 +339,22 @@ class TestSourceResolution:
         status_ = sources.status("aqi")
         assert status_.kind == "placeholder"
         assert "incompatible" in status_.detail and "missing required columns" in status_.detail
+
+    def test_malformed_discovered_outputs_never_crash_startup(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Ragged CSV rows and a non-list 'stations' must be contract errors (lenient
+        # fallback), not raw exceptions that would stop the API from starting.
+        csv_ = _write(tmp_path / "analysis_ready_dataset.csv", [V1_HEADER, "TST_001,Short"])
+        clusters = tmp_path / "cluster_summary.json"
+        clusters.write_text(json.dumps([dict(CLUSTERS[0], stations=7)]), encoding="utf-8")
+        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "dataset", (csv_,))
+        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "hcho", (clusters,))
+        load_configured_sources(Settings(_env_file=None))
+        assert sources.status("aqi").kind == "placeholder"
+        assert "incompatible" in sources.status("aqi").detail
+        assert sources.status("hcho").kind == "placeholder"
+        assert "not a list" in sources.status("hcho").detail
 
     def test_model_not_loaded_when_ml_disabled(self, model_dir: Path) -> None:
         load_configured_sources(_settings(ML_MODEL_PATH=str(model_dir)))
@@ -480,6 +509,20 @@ class TestEndpointsWithDataset:
         by_domain = {s["domain"]: s for s in listed}
         assert by_domain["aqi"]["kind"] == "local" and by_domain["aqi"]["records"] == 3
         assert by_domain["model"]["kind"] == "unavailable"
+
+    async def test_hcho_trend_keeps_negative_retrievals(
+        self, client_no_db: AsyncClient, tmp_path: Path
+    ) -> None:
+        # Dropping the negative column would bias the daily mean upwards
+        negative = V1_ROWS[2].replace(",0.0003", ",-0.0001")
+        sources.dataset = load_dataset(
+            _write(tmp_path / "neg.csv", [V1_HEADER, V1_ROWS[0], V1_ROWS[1], negative])
+        )
+        (point,) = (await client_no_db.get("/api/v1/hcho/trend")).json()["points"]
+        assert point["station_count"] == 3
+        assert point["mean_column_density"] == pytest.approx(
+            (0.0002 + 0.0001 - 0.0001) / 3 * MOL_M2_TO_1E15_MOLEC_CM2, abs=1e-3
+        )
 
 
 class TestEndpointsWithV2Dataset:

@@ -72,7 +72,7 @@ def render() -> None:
 
     # ── KPI Snapshot ──────────────────────────────────────────────────────────
     st.markdown(
-        f"<h3 style='color:{PRIMARY};margin-bottom:4px'>📊 Today's Snapshot</h3>",
+        f"<h3 style='color:{PRIMARY};margin-bottom:4px'>📊 Latest Snapshot</h3>",
         unsafe_allow_html=True,
     )
     _render_kpi_cards()
@@ -109,8 +109,9 @@ def _render_mission_hero() -> None:
             satellite measurements, <strong style="color:{PRIMARY}">MODIS/VIIRS</strong> fire
             radiative power, and <strong style="color:{PRIMARY}">CPCB ground sensors</strong>
             to estimate surface AQI with machine-learning models and explain the predictions —
-            supporting evidence-based environmental policy. <em>(In development: the dashboard
-            currently shows demo data and a simulated forecast.)</em>
+            supporting evidence-based environmental policy. <em>(In development: each module's
+            source badge shows whether it serves team data, a labelled placeholder, a simulation
+            or nothing yet.)</em>
           </div>
           <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap">
             <span style="background:{BG_ELEVATED};border:1px solid {BORDER_DEFAULT};
