@@ -25,7 +25,9 @@ class VersionResponse(BaseModel):
         default_factory=dict,
         description=(
             "Compact source per domain: '<kind>:<name>' or '<kind>' with kind in "
-            "live | local | placeholder | simulated | unavailable. Details: GET /api/v1/sources."
+            "live | local | placeholder | simulated | unavailable, or 'withheld:<name>' for a "
+            "source that exists but is not served (unverified model). Trust and promotion: "
+            "GET /api/v1/sources."
         ),
     )
 

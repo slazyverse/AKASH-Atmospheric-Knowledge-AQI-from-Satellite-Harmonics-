@@ -93,7 +93,8 @@ class TestSourceStatus:
 
     def test_labels(self) -> None:
         assert data_sources.source_label("aqi") == "PLACEHOLDER (placeholder_station_dataset.csv)"
-        assert data_sources.source_label("hcho") == "LOCAL (cluster_summary.json)"
+        # A local team file without trust fields is never shown as promoted
+        assert data_sources.source_label("hcho") == "LOCAL — UNVERIFIED (cluster_summary.json)"
         assert data_sources.source_label("forecast") == "SIMULATED"
         assert data_sources.source_label("model") == "UNAVAILABLE"
 
@@ -146,6 +147,100 @@ class TestLimitations:
         assert data_sources.limitations("aqi") == []
         assert data_sources.spatial_restriction("aqi") is None
         assert data_sources.source_kind("aqi") == "unavailable"
+
+
+TRUST = {
+    "aqi": {"domain": "aqi", "kind": "local", "name": "analysis_ready_dataset.csv",
+            "status": "available", "trust": "unverified", "promoted": False,
+            "reason": "Team dataset in use but not promoted: coordinate quality insufficient "
+                      "for spatial maps.",
+            "capabilities": {"aqi_tables": {"enabled": True, "reason": "ok"},
+                             "station_maps": {"enabled": False,
+                                              "reason": "Coordinate quality insufficient."}},
+            "validation": {"status": "restricted", "failed": ["coordinate_quality"], "checks": [
+                {"name": "coordinate_quality", "passed": False, "severity": "restricting",
+                 "detail": "429 of 442 stations on 46 shared points."},
+                {"name": "schema_compatible", "passed": True, "severity": "blocking",
+                 "detail": "ok"}]},
+            "limitations": [], "candidate": None},
+    "hcho_trend": {"domain": "hcho_trend", "kind": "local", "name": "analysis_ready_dataset.csv",
+                   "status": "available", "trust": "trusted", "promoted": True,
+                   "reason": "Team HCHO trend source promoted."},
+    "model": {"domain": "model", "kind": "local", "name": "lightgbm_run", "status": "withheld",
+              "trust": "unverified", "promoted": False,
+              "reason": "Model artefact found but not validated — not served."},
+    "hcho": {"domain": "hcho", "kind": "placeholder", "name": "placeholder_hcho_clusters.json",
+             "status": "available", "trust": "placeholder", "promoted": False,
+             "reason": "Placeholder in use: the team hotspot clusters (reports/cluster_summary.json)"
+                       " failed the contract gate.",
+             "capabilities": {"hotspot_map": {"enabled": True, "reason": "illustrative"}},
+             "candidate": {"origin": "discovered", "location": "reports/cluster_summary.json",
+                           "reason": "failed the contract gate: 40% of rows rejected"}},
+    "spoofed": {"domain": "spoofed", "kind": "local", "name": "x.csv", "trust": "trusted",
+                "promoted": False},
+}
+
+
+class TestTrustLabels:
+    @pytest.fixture(autouse=True)
+    def _sources(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(data_sources, "get_sources", lambda: TRUST)
+
+    def test_labels_distinguish_availability_from_trust(self) -> None:
+        assert data_sources.trust_label("aqi") == "LOCAL — UNVERIFIED"
+        assert data_sources.trust_label("hcho_trend") == "LOCAL — PROMOTED"
+        assert data_sources.trust_label("model") == "LOCAL — UNVERIFIED · not served"
+        assert data_sources.trust_label("hcho") == "PLACEHOLDER"
+        assert data_sources.is_promoted("hcho_trend") and not data_sources.is_promoted("aqi")
+
+    def test_trusted_requires_explicit_promotion(self) -> None:
+        assert data_sources.trust_level("spoofed") == "unverified"
+        assert "PROMOTED" not in data_sources.trust_label("spoofed")
+
+    def test_never_live_for_a_local_file(self) -> None:
+        for domain in TRUST:
+            assert not data_sources.trust_label(domain).startswith("LIVE")
+
+    def test_map_capability_drives_withholding(self) -> None:
+        assert data_sources.spatial_restriction("aqi") == "Coordinate quality insufficient."
+        assert data_sources.spatial_restriction("hcho") is None  # placeholder: illustrative
+
+    def test_reason_candidate_and_failed_checks(self) -> None:
+        assert "not promoted" in data_sources.trust_reason("aqi")
+        assert data_sources.candidate("hcho")["location"] == "reports/cluster_summary.json"
+        assert data_sources.candidate("aqi") is None
+        assert [c["name"] for c in data_sources.failed_checks("aqi")] == ["coordinate_quality"]
+
+    def test_offline_is_unavailable_with_reason(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(data_sources, "get_sources", lambda: {})
+        assert data_sources.trust_label("aqi") == "UNAVAILABLE"
+        assert data_sources.trust_reason("aqi") == "Backend unreachable."
+        assert data_sources.capabilities("aqi") == {}
+
+
+def _badge_app() -> None:
+    from dashboard.components.source_badge import render_map_withheld, render_source_badge
+
+    render_source_badge("aqi", "Station data")
+    render_source_badge("hcho", "Hotspots")
+    render_map_withheld("aqi", "Station map")
+
+
+class TestTrustBadgeRendering:
+    def test_badges_reasons_and_withheld_map(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from streamlit.testing.v1 import AppTest
+
+        monkeypatch.setattr(data_sources, "get_sources", lambda: TRUST)
+        at = AppTest.from_function(_badge_app, default_timeout=60)
+        at.run()
+        assert not at.exception
+        html = " ".join(m.value for m in at.markdown)
+        assert "LOCAL — UNVERIFIED" in html and "PLACEHOLDER · not real data" in html
+        assert "✗ station maps" in html
+        assert "Station map withheld" in html
+        captions = " ".join(c.value for c in at.caption)
+        assert "not promoted" in captions and "Placeholder in use" in captions
+        assert [e.label for e in at.expander] == ["Validation details", "Validation details"]
 
 
 class TestAQIService:

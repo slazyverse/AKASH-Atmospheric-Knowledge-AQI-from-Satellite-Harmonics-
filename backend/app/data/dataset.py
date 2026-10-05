@@ -15,7 +15,9 @@ UTC and offset timestamps are converted to UTC. Nothing is imputed and source
 values are never altered; the adapter only accepts or rejects:
 
   rejected rows (counted per reason in DatasetQuality)
-    missing_station_id · invalid_timestamp · invalid_coordinates ·
+    malformed_row (wrong number of fields) · missing_station_id ·
+    invalid_station_id (longer than 50 characters) · invalid_timestamp ·
+    future_timestamp · missing_coordinates · invalid_coordinates ·
     outside_india · invalid_aqi (missing / outside the 0–500 AQI scale) ·
     below_cpcb_minimum (an AQI reported with fewer than three pollutants or
     without PM2.5 / PM10 is not a CPCB AQI)
@@ -23,12 +25,14 @@ values are never altered; the adapter only accepts or rejects:
     identical rows for the same station and timestamp are collapsed;
     conflicting rows for the same station and timestamp are all dropped
   per-value normalisation
-    negative / non-finite pollutant concentrations become missing (None)
+    negative / non-finite / unparseable pollutant concentrations become
+    missing (None) and are counted per pollutant (invalid_cells)
 
-Dataset-level findings that do not justify rejecting rows (shared coordinates,
-an implausible CO unit, a single date, satellite dates far from station dates)
-are reported as limitations, so the API and dashboard can restrict what they
-show.
+Dataset-level findings that do not justify rejecting rows (shared or
+multi-city fallback coordinates, an implausible CO unit, PM2.5 above PM10, a
+single date, satellite dates far from station dates) are reported as
+limitations and measured in DatasetQuality; app.data.trust turns them into
+validation checks, capabilities and the promotion decision.
 
 Satellite HCHO samples are collected separately (HCHOSample): a satellite value
 does not depend on the ground AQI, so a row rejected only for its AQI still
@@ -45,8 +49,8 @@ import csv
 import math
 import statistics
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
-from datetime import UTC, date, datetime
+from dataclasses import dataclass, field, replace
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -92,10 +96,19 @@ _POLLUTANTS = ("pm25", "pm10", "no2", "so2", "co", "o3")
 # Satellite values matched more than this many days away from the station date
 # are reported (the team collocation window is ±3 days).
 SATELLITE_DATE_TOLERANCE_DAYS = 3
+# PM2.5 is a subset of PM10, so PM2.5 > PM10 at the same station and time is
+# physically inconsistent; a few percent can come from separate instruments.
+PM25_ABOVE_PM10_LIMIT = 0.05
+# Matches the station_id limit of the API endpoints.
+MAX_STATION_ID_LENGTH = 50
 
 REJECTION_REASONS: tuple[str, ...] = (
+    "malformed_row",
     "missing_station_id",
+    "invalid_station_id",
     "invalid_timestamp",
+    "future_timestamp",
+    "missing_coordinates",
     "invalid_coordinates",
     "outside_india",
     "invalid_aqi",
@@ -169,6 +182,16 @@ class DatasetQuality:
     pollutant_columns: tuple[str, ...] = field(default_factory=tuple)
     hcho_samples: int = 0
     hcho_satellite_dated: bool = False
+    schema_version: str = "v1"
+    pollutant_missing: dict[str, float] = field(default_factory=dict)
+    invalid_cells: dict[str, int] = field(default_factory=dict)
+    pm_pairs: int = 0
+    pm25_above_pm10: int = 0
+    max_stations_per_location: int = 0
+    locations_spanning_cities: int = 0
+    hcho_undated: int = 0
+    hcho_distinct_samples: int = 0
+    hcho_conflicting_samples: int = 0
 
     @property
     def approximate_coordinates(self) -> bool:
@@ -177,6 +200,18 @@ class DatasetQuality:
     @property
     def co_unit_unverified(self) -> bool:
         return self.co_median is not None and self.co_median > CO_PLAUSIBLE_MEDIAN_MG_M3
+
+    @property
+    def rows_rejected(self) -> int:
+        return sum(self.rejected.values()) + self.conflicting_duplicates_dropped
+
+    @property
+    def rejected_fraction(self) -> float:
+        return self.rows_rejected / self.rows_read if self.rows_read else 0.0
+
+    @property
+    def pm_inconsistent(self) -> bool:
+        return bool(self.pm_pairs) and self.pm25_above_pm10 > PM25_ABOVE_PM10_LIMIT * self.pm_pairs
 
     @property
     def satellite_date_mismatch(self) -> bool:
@@ -192,7 +227,9 @@ class DatasetQuality:
             out.append((
                 "approximate_coordinates",
                 f"{self.stations_sharing_coordinates} of {self.stations} stations share their "
-                f"exact coordinates ({self.distinct_locations} distinct locations): the "
+                f"exact coordinates ({self.distinct_locations} distinct locations, up to "
+                f"{self.max_stations_per_location} stations on one point, "
+                f"{self.locations_spanning_cities} points shared by different cities): the "
                 "coordinates are city / registry fallbacks, not station positions. Station "
                 "maps are withheld; tables and AQI values remain available.",
             ))
@@ -214,6 +251,13 @@ class DatasetQuality:
                 f"CO median {self.co_median:g} is implausible in the contract unit mg/m³ "
                 f"(CPCB 'Poor' starts at {CO_PLAUSIBLE_MEDIAN_MG_M3:g} mg/m³); CO is shown as "
                 "reported, unit unverified.",
+            ))
+        if self.pm_inconsistent:
+            out.append((
+                "pm_inconsistent",
+                f"PM2.5 exceeds PM10 in {self.pm25_above_pm10} of {self.pm_pairs} rows that "
+                "report both — physically inconsistent (PM2.5 is part of PM10); values are "
+                "shown as reported.",
             ))
         if self.first_date == self.last_date:
             out.append((
@@ -268,6 +312,25 @@ class DatasetQuality:
                 "satellite_observation_date" if self.hcho_satellite_dated
                 else "station_observation_date"
             ),
+            "schema_version": self.schema_version,
+            "rejected_fraction": round(self.rejected_fraction, 4),
+            "pollutant_missing_fraction": self.pollutant_missing,
+            "invalid_cells": {k: v for k, v in self.invalid_cells.items() if v},
+            "pm25_above_pm10": self.pm25_above_pm10,
+            "pm_pairs": self.pm_pairs,
+            "spatial": {
+                "coordinate_quality": (
+                    "approximate" if self.approximate_coordinates else "reported"
+                ),
+                "stations": self.stations,
+                "distinct_locations": self.distinct_locations,
+                "stations_sharing_coordinates": self.stations_sharing_coordinates,
+                "max_stations_per_location": self.max_stations_per_location,
+                "locations_spanning_cities": self.locations_spanning_cities,
+            },
+            "hcho_distinct_samples": self.hcho_distinct_samples,
+            "hcho_conflicting_samples": self.hcho_conflicting_samples,
+            "hcho_undated": self.hcho_undated,
         }
 
 
@@ -327,12 +390,21 @@ def _parse_row(row: dict[str, str | None], cols: dict[str, str]) -> Observation 
     def get(field_name: str) -> str:
         return _cell(row, cols[field_name]) if field_name in cols else ""
 
+    # csv.DictReader: extra fields land under the key None, missing fields are None
+    if None in row or any(value is None for value in row.values()):
+        return "malformed_row"
     station_id = get("station_id")
     if not station_id:
         return "missing_station_id"
+    if len(station_id) > MAX_STATION_ID_LENGTH:
+        return "invalid_station_id"
     observed_at = _timestamp(row, cols)
     if observed_at is None:
         return "invalid_timestamp"
+    if observed_at > datetime.now(UTC) + timedelta(days=1):
+        return "future_timestamp"
+    if not get("latitude") or not get("longitude"):
+        return "missing_coordinates"
     lat, lon = _float(get("latitude")), _float(get("longitude"))
     if lat is None or lon is None or not -90 <= lat <= 90 or not -180 <= lon <= 180:
         return "invalid_coordinates"
@@ -367,8 +439,12 @@ def _parse_row(row: dict[str, str | None], cols: dict[str, str]) -> Observation 
     )
 
 
-def _hcho_sample(row: dict[str, str | None], cols: dict[str, str]) -> HCHOSample | None:
-    """The row's satellite HCHO sample, judged independently of its ground AQI."""
+def _hcho_sample(row: dict[str, str | None], cols: dict[str, str]) -> HCHOSample | str | None:
+    """
+    The row's satellite HCHO sample, judged independently of its ground AQI.
+    Returns "undated" for a usable value without a satellite date, None when the
+    row carries no usable sample.
+    """
     if "hcho" not in cols:
         return None
 
@@ -383,8 +459,31 @@ def _hcho_sample(row: dict[str, str | None], cols: dict[str, str]) -> HCHOSample
     station_day = observed_at.date() if observed_at else None
     day = _date(get("hcho_obs_date")) if "hcho_obs_date" in cols else station_day
     if day is None:
-        return None
+        return "undated"
     return HCHOSample(station_id, _location(lat, lon), day, value, station_day)
+
+
+def _cell_stats(
+    rows: list[dict[str, str | None]], cols: dict[str, str]
+) -> tuple[dict[str, float], dict[str, int]]:
+    """Per-pollutant missing fraction and count of unusable (non-empty) cells."""
+    missing: dict[str, float] = {}
+    invalid: dict[str, int] = {}
+    for name in (*_POLLUTANTS, "hcho"):
+        if name not in cols:
+            continue
+        empty = bad = 0
+        for row in rows:
+            raw = _cell(row, cols[name])
+            value = _float(raw)
+            if not raw:
+                empty += 1
+            # negative HCHO columns are valid retrieval noise; negative masses are not
+            elif value is None or (name != "hcho" and value < 0):
+                bad += 1
+        missing[name] = round(empty / len(rows), 3)
+        invalid[name] = bad
+    return missing, invalid
 
 
 def _samples_from(observations: list[Observation]) -> list[HCHOSample]:
@@ -430,6 +529,14 @@ def _assess(
             latest[o.station_id] = o
     per_location = Counter(o.location for o in latest.values())
     sharing = sum(n for n in per_location.values() if n > 1)
+    cities: dict[tuple[float, float], set[str]] = defaultdict(set)
+    for o in latest.values():
+        if o.city.strip():
+            cities[o.location].add(o.city.strip().lower())
+    pm_pairs = [(o.pm25, o.pm10) for o in observations if o.pm25 is not None and o.pm10 is not None]
+    by_sample: dict[tuple[tuple[float, float], date], set[float]] = defaultdict(set)
+    for smp in samples:
+        by_sample[(smp.location, smp.observed_on)].add(smp.value_mol_m2)
 
     co_values = [o.co for o in observations if o.co is not None]
     hcho_dates = sorted({s.observed_on for s in samples})
@@ -455,6 +562,13 @@ def _assess(
         pollutant_columns=tuple(p for p in _POLLUTANTS if p in cols),
         hcho_samples=len(samples),
         hcho_satellite_dated="hcho_obs_date" in cols,
+        schema_version="v2" if "timestamp" in cols else "v1",
+        pm_pairs=len(pm_pairs),
+        pm25_above_pm10=sum(1 for pm25, pm10 in pm_pairs if pm25 > pm10),
+        max_stations_per_location=max(per_location.values(), default=0),
+        locations_spanning_cities=sum(1 for c in cities.values() if len(c) > 1),
+        hcho_distinct_samples=len(by_sample),
+        hcho_conflicting_samples=sum(1 for v in by_sample.values() if len(v) > 1),
     )
 
 
@@ -561,7 +675,8 @@ def load_dataset(path: str | Path) -> StationDataset:
 
     parsed: list[Observation] = []
     rejected: Counter[str] = Counter()
-    samples = [s for row in rows if (s := _hcho_sample(row, cols)) is not None]
+    raw_samples = [_hcho_sample(row, cols) for row in rows]
+    samples = [s for s in raw_samples if isinstance(s, HCHOSample)]
     for row in rows:
         result = _parse_row(row, cols)
         if isinstance(result, str):
@@ -576,6 +691,13 @@ def load_dataset(path: str | Path) -> StationDataset:
         )
 
     quality = _assess(len(rows), rejected, observations, collapsed, conflicting, cols, samples)
+    missing, invalid = _cell_stats(rows, cols)
+    quality = replace(
+        quality,
+        pollutant_missing=missing,
+        invalid_cells=invalid,
+        hcho_undated=sum(1 for s in raw_samples if s == "undated"),
+    )
     logger.info(
         "Station dataset loaded",
         file=file.name,

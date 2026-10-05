@@ -39,7 +39,7 @@ from dashboard.services import (
     hcho_service,
     surface_aqi_service,
 )
-from dashboard.services.data_sources import source_kind, source_label
+from dashboard.services.data_sources import source_label, trust_level
 
 
 def render() -> None:
@@ -185,11 +185,11 @@ def _render_kpi_cards() -> None:
 
 
 def _status(domain: str) -> str:
-    """Module card status from the backend's source kind."""
+    """Module card status from the backend's trust level (never "live" for a file)."""
     return {
-        "live": "Live", "local": "Team data", "placeholder": "Placeholder",
-        "simulated": "Simulated", "unavailable": "Unavailable",
-    }.get(source_kind(domain), "Unavailable")
+        "trusted": "Team data — promoted", "unverified": "Team data — unverified",
+        "placeholder": "Placeholder", "simulated": "Simulated", "unavailable": "Unavailable",
+    }.get(trust_level(domain), "Unavailable")
 
 
 def _render_module_cards() -> None:
