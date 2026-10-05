@@ -28,7 +28,15 @@ values are never altered; the adapter only accepts or rejects:
 Dataset-level findings that do not justify rejecting rows (shared coordinates,
 an implausible CO unit, a single date, satellite dates far from station dates)
 are reported as limitations, so the API and dashboard can restrict what they
-show. Pure standard library — no pandas dependency.
+show.
+
+Satellite HCHO samples are collected separately (HCHOSample): a satellite value
+does not depend on the ground AQI, so a row rejected only for its AQI still
+contributes its HCHO sample. Samples need a station ID, coordinates inside
+India, a finite HCHO value and a date — the satellite overpass date when the
+dataset records "HCHO Obs Date" (undated values are then excluded rather than
+mixed with station dates), otherwise the station observation date.
+Pure standard library — no pandas dependency.
 """
 
 from __future__ import annotations
@@ -122,7 +130,22 @@ class Observation:
     @property
     def location(self) -> tuple[float, float]:
         """Coordinate key (≈1 m precision) used to detect shared locations."""
-        return (round(self.latitude, 5), round(self.longitude, 5))
+        return _location(self.latitude, self.longitude)
+
+
+def _location(latitude: float, longitude: float) -> tuple[float, float]:
+    return (round(latitude, 5), round(longitude, 5))
+
+
+@dataclass(frozen=True)
+class HCHOSample:
+    """One satellite HCHO value sampled at a station's coordinates."""
+
+    station_id: str
+    location: tuple[float, float]
+    observed_on: date            # satellite overpass date (or station date if not recorded)
+    value_mol_m2: float
+    station_date: date | None    # station observation date, when the row has one
 
 
 @dataclass(frozen=True)
@@ -144,6 +167,8 @@ class DatasetQuality:
     hcho_dates: tuple[date, date] | None
     max_satellite_offset_days: int | None
     pollutant_columns: tuple[str, ...] = field(default_factory=tuple)
+    hcho_samples: int = 0
+    hcho_satellite_dated: bool = False
 
     @property
     def approximate_coordinates(self) -> bool:
@@ -238,6 +263,11 @@ class DatasetQuality:
             "first_date": str(self.first_date),
             "last_date": str(self.last_date),
             "co_median": self.co_median,
+            "hcho_samples": self.hcho_samples,
+            "hcho_date_basis": (
+                "satellite_observation_date" if self.hcho_satellite_dated
+                else "station_observation_date"
+            ),
         }
 
 
@@ -337,6 +367,34 @@ def _parse_row(row: dict[str, str | None], cols: dict[str, str]) -> Observation 
     )
 
 
+def _hcho_sample(row: dict[str, str | None], cols: dict[str, str]) -> HCHOSample | None:
+    """The row's satellite HCHO sample, judged independently of its ground AQI."""
+    if "hcho" not in cols:
+        return None
+
+    def get(field_name: str) -> str:
+        return _cell(row, cols[field_name]) if field_name in cols else ""
+
+    station_id, value = get("station_id"), _float(get("hcho"))
+    lat, lon = _float(get("latitude")), _float(get("longitude"))
+    if not station_id or value is None or lat is None or lon is None or not in_india(lat, lon):
+        return None
+    observed_at = _timestamp(row, cols)
+    station_day = observed_at.date() if observed_at else None
+    day = _date(get("hcho_obs_date")) if "hcho_obs_date" in cols else station_day
+    if day is None:
+        return None
+    return HCHOSample(station_id, _location(lat, lon), day, value, station_day)
+
+
+def _samples_from(observations: list[Observation]) -> list[HCHOSample]:
+    return [
+        HCHOSample(o.station_id, o.location, o.hcho_observed_on or o.observed_at.date(),
+                   o.hcho_mol_m2, o.observed_at.date())
+        for o in observations if o.hcho_mol_m2 is not None
+    ]
+
+
 def _deduplicate(observations: list[Observation]) -> tuple[list[Observation], int, int]:
     """Collapse identical duplicates; drop every row of a conflicting duplicate key."""
     groups: dict[tuple[str, datetime], list[Observation]] = defaultdict(list)
@@ -362,6 +420,7 @@ def _assess(
     collapsed: int,
     conflicting: int,
     cols: dict[str, str],
+    samples: list[HCHOSample],
 ) -> DatasetQuality:
     metadata: dict[str, set[tuple[str, tuple[float, float]]]] = defaultdict(set)
     latest: dict[str, Observation] = {}
@@ -373,10 +432,9 @@ def _assess(
     sharing = sum(n for n in per_location.values() if n > 1)
 
     co_values = [o.co for o in observations if o.co is not None]
-    hcho_dates = sorted({o.hcho_observed_on for o in observations if o.hcho_observed_on})
+    hcho_dates = sorted({s.observed_on for s in samples})
     offsets = [
-        abs((o.hcho_observed_on - o.observed_at.date()).days)
-        for o in observations if o.hcho_observed_on and o.hcho_mol_m2 is not None
+        abs((s.observed_on - s.station_date).days) for s in samples if s.station_date
     ]
     days = [o.observed_at.date() for o in observations]
     return DatasetQuality(
@@ -395,6 +453,8 @@ def _assess(
         hcho_dates=(hcho_dates[0], hcho_dates[-1]) if hcho_dates else None,
         max_satellite_offset_days=max(offsets) if offsets else None,
         pollutant_columns=tuple(p for p in _POLLUTANTS if p in cols),
+        hcho_samples=len(samples),
+        hcho_satellite_dated="hcho_obs_date" in cols,
     )
 
 
@@ -406,13 +466,17 @@ class StationDataset:
         observations: list[Observation],
         source_name: str,
         quality: DatasetQuality | None = None,
+        hcho_samples: list[HCHOSample] | None = None,
     ) -> None:
         if not observations:
             raise DatasetError("Dataset contains no valid observations.")
         self.source_name = source_name
         self._observations = observations
+        self._hcho_samples = (
+            hcho_samples if hcho_samples is not None else _samples_from(observations)
+        )
         self.quality = quality or _assess(
-            len(observations), Counter(), observations, 0, 0, {}
+            len(observations), Counter(), observations, 0, 0, {}, self._hcho_samples
         )
 
     def __len__(self) -> int:
@@ -441,6 +505,18 @@ class StationDataset:
     @property
     def observations(self) -> tuple[Observation, ...]:
         return tuple(self._observations)
+
+    @property
+    def hcho_samples(self) -> tuple[HCHOSample, ...]:
+        """Satellite HCHO samples (incl. rows rejected only for their ground AQI)."""
+        return tuple(self._hcho_samples)
+
+    @property
+    def hcho_date_basis(self) -> str:
+        return (
+            "satellite_observation_date" if self.quality.hcho_satellite_dated
+            else "station_observation_date"
+        )
 
     def observations_for(self, station_id: str) -> list[Observation]:
         """All observations of one station, oldest first."""
@@ -485,6 +561,7 @@ def load_dataset(path: str | Path) -> StationDataset:
 
     parsed: list[Observation] = []
     rejected: Counter[str] = Counter()
+    samples = [s for row in rows if (s := _hcho_sample(row, cols)) is not None]
     for row in rows:
         result = _parse_row(row, cols)
         if isinstance(result, str):
@@ -498,7 +575,7 @@ def load_dataset(path: str | Path) -> StationDataset:
             f"(rejected: {dict(rejected)}, conflicting duplicates: {conflicting})."
         )
 
-    quality = _assess(len(rows), rejected, observations, collapsed, conflicting, cols)
+    quality = _assess(len(rows), rejected, observations, collapsed, conflicting, cols, samples)
     logger.info(
         "Station dataset loaded",
         file=file.name,
@@ -508,4 +585,6 @@ def load_dataset(path: str | Path) -> StationDataset:
         stations=quality.stations,
         distinct_locations=quality.distinct_locations,
     )
-    return StationDataset(observations, source_name=file.name, quality=quality)
+    return StationDataset(
+        observations, source_name=file.name, quality=quality, hcho_samples=samples
+    )

@@ -65,20 +65,21 @@ TEAM_ROWS = [
          "0.0003", "2026-06-28"),
     _row("STN_021", "Station C1", "Delhi", "Delhi", C, "90,180,60,20,35,40", "300",
          "-0.0001", "2026-06-29"),
-    # Defects that must be rejected at the adapter boundary
+    # Defects that must be rejected at the adapter boundary. Their satellite HCHO
+    # (same pixel as C1) does not depend on the ground AQI and still counts.
     _row("STN_031", "No PM", "Kanpur", "Uttar Pradesh", C, ",,0,10,12,16", "0",
-         "0.0002", "2026-06-29"),                                # below CPCB minimum
+         "-0.0001", "2026-06-27"),                               # below CPCB minimum
     _row("STN_032", "Off scale", "Agra", "Uttar Pradesh", C, "40,80,20,5,25,30", "612",
-         "0.0002", "2026-06-29"),                                # AQI outside 0–500
+         "-0.0001", "2026-06-29"),                               # AQI outside 0–500
     _row("STN_033", "London", "London", "UK", "51.5072,-0.1276", "40,80,20,5,25,30", "105",
          "0.0002", "2026-06-29"),                                # outside India
     # Exact duplicate (collapsed) and conflicting duplicate (both dropped)
     _row("STN_001", "Station A1", "Town1", "Maharashtra", A, "40,80,20,5,25,30", "105",
          "0.0002", "2026-06-29"),
     _row("STN_041", "Conflict", "Pune", "Maharashtra", C, "40,80,20,5,25,30", "105",
-         "0.0002", "2026-06-29"),
+         "-0.0001", "2026-06-29"),
     _row("STN_041", "Conflict", "Pune", "Maharashtra", C, "40,80,20,5,25,30", "140",
-         "0.0002", "2026-06-29"),
+         "-0.0001", "2026-06-29"),
 ]
 
 TEAM_CLUSTERS = [
@@ -208,6 +209,22 @@ class TestTeamDataset:
             "satellite_date_mismatch", "approximate_coordinates",
         ]
 
+    def test_satellite_samples_independent_of_ground_aqi(self, team_csv: Path) -> None:
+        ds = load_dataset(team_csv)
+        # 15 rows: London is outside India; every other row has a valid satellite sample
+        assert ds.quality.hcho_samples == len(ds.hcho_samples) == 14
+        assert "STN_031" in {s.station_id for s in ds.hcho_samples}  # AQI rejected
+        assert ds.quality.hcho_dates == (date(2026, 6, 27), date(2026, 6, 29))
+        assert ds.hcho_date_basis == "satellite_observation_date"
+
+    def test_undated_satellite_value_is_not_mixed_with_station_dates(
+        self, tmp_path: Path
+    ) -> None:
+        undated = TEAM_ROWS[8].replace("-0.0001,2026-06-29", "-0.0001,")
+        ds = load_dataset(_write(tmp_path / "u.csv", [HEADER, TEAM_ROWS[0], undated]))
+        assert [s.station_id for s in ds.hcho_samples] == ["STN_001"]
+        assert len(ds) == 2  # the observation itself is still accepted
+
     def test_dataset_with_only_rejected_rows_is_rejected(self, tmp_path: Path) -> None:
         from app.data.dataset import DatasetError
 
@@ -256,13 +273,17 @@ class TestTeamDatasetEndpoints:
         data = (await client_no_db.get("/api/v1/hcho/trend")).json()
         assert data["date_basis"] == "satellite_observation_date"
         by_day = {p["obs_date"]: p for p in data["points"]}
-        assert set(by_day) == {"2026-06-28", "2026-06-29"}
+        assert set(by_day) == {"2026-06-27", "2026-06-28", "2026-06-29"}
+        # 06-27 exists only through a row rejected for its AQI: its satellite sample counts
+        assert (by_day["2026-06-27"]["station_count"], by_day["2026-06-27"]["location_count"]) \
+            == (1, 1)
         # 06-28: two stations on one coordinate = one satellite sample
         assert (by_day["2026-06-28"]["station_count"], by_day["2026-06-28"]["location_count"]) \
             == (2, 1)
-        # 06-29: six stations on A (one sample) + C (negative retrieval kept) = 2 locations
+        # 06-29: six stations on A (one sample) + C1, STN_032, STN_041 on C (negative
+        # retrieval kept) = 2 locations; London (outside India) never counts
         june29 = by_day["2026-06-29"]
-        assert (june29["station_count"], june29["location_count"]) == (7, 2)
+        assert (june29["station_count"], june29["location_count"]) == (9, 2)
         expected = (0.0002 + -0.0001) / 2 * MOL_M2_TO_1E15_MOLEC_CM2
         assert june29["mean_column_density"] == pytest.approx(expected, abs=1e-3)
 

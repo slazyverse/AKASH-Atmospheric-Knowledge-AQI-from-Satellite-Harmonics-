@@ -312,12 +312,14 @@ def load_configured_sources(settings: Settings) -> None:
         limitations=station_limits, quality=quality,
     )
     hcho_dates = ds.quality.hcho_dates if ds else None
+    basis = ds.hcho_date_basis.replace("_", " ") if ds else "station observation date"
     st["hcho_trend"] = SourceStatus(
         "hcho_trend", kind, name,
-        "Daily mean satellite HCHO column at the station dataset's sampling locations "
-        f"({'satellite observation date' if hcho_dates else 'station observation date'}).",
-        records=sum(o.hcho_mol_m2 is not None for o in ds.observations) if ds else None,
-        as_of=str(hcho_dates[1]) if hcho_dates else as_of,
+        f"Daily mean satellite HCHO column at the station dataset's sampling locations "
+        f"(dated by {basis}); rows rejected only for their ground AQI still contribute "
+        "their satellite sample.",
+        records=len(ds.hcho_samples) if ds else None,
+        as_of=str(hcho_dates[1]) if hcho_dates else None,
         limitations=_limits(ds.quality.hcho_limitations()) if ds else (),
     )
 

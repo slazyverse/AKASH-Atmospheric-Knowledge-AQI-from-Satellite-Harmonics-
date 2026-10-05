@@ -21,7 +21,6 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, timedelta
-from typing import TYPE_CHECKING
 
 from app.core.logging import get_logger
 from app.core.units import hcho_mol_m2_to_1e15_molec_cm2
@@ -33,9 +32,6 @@ from app.schemas.hcho import (
     HCHOTrendPoint,
     HCHOTrendResponse,
 )
-
-if TYPE_CHECKING:
-    from app.data.dataset import Observation
 
 logger = get_logger(__name__)
 
@@ -121,27 +117,23 @@ class HCHOService:
         if ds is None:
             return HCHOTrendResponse(count=0, points=[])
 
-        samples = [o for o in ds.observations if o.hcho_mol_m2 is not None]
-        satellite_dated = any(o.hcho_observed_on for o in samples)
-
-        def day_of(o: Observation) -> date:
-            return o.hcho_observed_on or o.observed_at.date()
-
+        # Satellite samples are independent of ground-AQI validity, so rows rejected
+        # only for their AQI still contribute (see app.data.dataset.HCHOSample).
+        samples = ds.hcho_samples
         if not samples:
-            return HCHOTrendResponse(count=0, points=[])
-        start = max(day_of(o) for o in samples) - timedelta(days=days - 1)
+            return HCHOTrendResponse(date_basis=ds.hcho_date_basis, count=0, points=[])
+        start = max(s.observed_on for s in samples) - timedelta(days=days - 1)
         # day → location → values (stations sharing a coordinate share one sample)
         by_day: dict[date, dict[tuple[float, float], list[float]]] = defaultdict(
             lambda: defaultdict(list)
         )
         stations: dict[date, set[str]] = defaultdict(set)
-        for o in samples:
-            day = day_of(o)
+        for s in samples:
             # Small negative columns are valid TROPOMI retrieval noise; they are kept,
             # because dropping them would bias the daily mean upwards.
-            if day >= start:
-                by_day[day][o.location].append(o.hcho_mol_m2)
-                stations[day].add(o.station_id)
+            if s.observed_on >= start:
+                by_day[s.observed_on][s.location].append(s.value_mol_m2)
+                stations[s.observed_on].add(s.station_id)
 
         points = []
         for day, locations in sorted(by_day.items()):
@@ -155,10 +147,7 @@ class HCHOService:
                 location_count=len(location_means),
             ))
         return HCHOTrendResponse(
-            date_basis="satellite_observation_date" if satellite_dated
-            else "station_observation_date",
-            count=len(points),
-            points=points,
+            date_basis=ds.hcho_date_basis, count=len(points), points=points
         )
 
 
