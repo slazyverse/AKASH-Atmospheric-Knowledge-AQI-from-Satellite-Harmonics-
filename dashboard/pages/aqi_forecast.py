@@ -18,6 +18,7 @@ from dashboard.components import (
     render_page_header,
     render_page_footer,
     render_no_data,
+    render_map_withheld,
     render_source_badge,
 )
 from dashboard.core.theme import PRIMARY
@@ -99,8 +100,9 @@ def render() -> None:
 
     with right:
         st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ Station Coverage Map</h4>", unsafe_allow_html=True)
-        render_source_badge("aqi", "Stations")
-        render_forecast_coverage_map(readings, key="forecast_coverage_map_widget")
+        render_source_badge("aqi", "Stations", compact=True)
+        if not render_map_withheld("aqi", "Station coverage map"):
+            render_forecast_coverage_map(readings, key="forecast_coverage_map_widget")
 
     render_page_footer()
 

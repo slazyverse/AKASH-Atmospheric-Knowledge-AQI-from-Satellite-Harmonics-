@@ -58,8 +58,9 @@ def _render_trained_model() -> None:
     data = xai_service.get_model_importance()
     if not data:
         render_info_notice(
-            "No trained-model artefact is loaded, so no model metrics or feature "
-            "importances are shown. Nothing is substituted."
+            "No validated trained-model artefact is loaded, so no model metrics or feature "
+            "importances are shown. Nothing is substituted. An artefact that exists but lacks "
+            "the required training metadata is listed above as not validated."
         )
         return
 

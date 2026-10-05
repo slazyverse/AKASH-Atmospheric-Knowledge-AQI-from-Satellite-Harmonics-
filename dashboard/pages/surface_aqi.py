@@ -17,6 +17,7 @@ from dashboard.components import (
     render_aqi_category_distribution,
     render_aqi_spatial_map,
     render_aqi_time_series,
+    render_map_withheld,
     render_no_data,
     render_page_footer,
     render_page_header,
@@ -35,7 +36,7 @@ from dashboard.core.theme import (
     aqi_category,
 )
 from dashboard.services import surface_aqi_service
-from dashboard.services.data_sources import source_label
+from dashboard.services.data_sources import has_limitation, source_label
 
 _TREND_WINDOWS = {"Last 7 days": 7, "Last 30 days": 30, "Last 90 days": 90}
 
@@ -84,7 +85,8 @@ def render() -> None:
 
     # ── Map Section ───────────────────────────────────────────────────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ Spatial Distribution</h4>", unsafe_allow_html=True)
-    render_aqi_spatial_map(readings, key="surface_aqi_map_widget")
+    if not render_map_withheld("aqi", "Station map"):
+        render_aqi_spatial_map(readings, key="surface_aqi_map_widget")
 
     st.markdown("<div style='height:20px'></div>", unsafe_allow_html=True)
 
@@ -212,6 +214,7 @@ def _render_aqi_legend() -> None:
 
 def _render_station_table(readings: list[Any]) -> None:
     """Render the station data table (missing pollutants shown as empty)."""
+    co_label = "CO (unit unverified)" if has_limitation("aqi", "co_unit_unverified") else "CO (mg/m³)"
     rows = [
         {
             "Station": r.station_name,
@@ -221,9 +224,10 @@ def _render_station_table(readings: list[Any]) -> None:
             "PM10 (µg/m³)": r.pm10,
             "NO2 (µg/m³)": r.no2,
             "SO2 (µg/m³)": r.so2,
-            "CO (mg/m³)": r.co,
+            co_label: r.co,
             "O3 (µg/m³)": r.o3,
             "Observed": r.recorded_at.strftime("%Y-%m-%d %H:%M"),
+            "Location": r.location_quality,
         }
         for r in readings
     ]

@@ -341,7 +341,7 @@ class TestSourceStatus:
         listed = (await client_no_db.get("/api/v1/sources")).json()["sources"]
         by_domain = {s["domain"]: s for s in listed}
         assert set(by_domain) == {
-            "aqi", "stations", "hcho", "fire", "model", "forecast",
+            "aqi", "stations", "hcho_trend", "hcho", "fire", "model", "forecast",
             "xai_global", "xai_local", "spatial_rasters",
         }
         assert by_domain["aqi"]["kind"] == "placeholder"
@@ -351,6 +351,18 @@ class TestSourceStatus:
         assert by_domain["forecast"]["kind"] == "simulated"
         assert by_domain["spatial_rasters"]["kind"] == "unavailable"
         assert all("/" not in s["name"] and "\\" not in s["name"] for s in listed)  # no paths
+
+    async def test_placeholder_limitations_and_quality(self, client_no_db: AsyncClient) -> None:
+        listed = (await client_no_db.get("/api/v1/sources")).json()["sources"]
+        by_domain = {s["domain"]: s for s in listed}
+        # The placeholder stations have distinct coordinates: maps are allowed
+        assert by_domain["aqi"]["limitations"] == []
+        assert by_domain["aqi"]["quality"]["coordinate_quality"] == "reported"
+        assert by_domain["aqi"]["quality"]["rows_accepted"] == 56
+        # The cluster contract itself lacks this metadata — reported, never invented
+        codes = {lim["code"] for lim in by_domain["hcho"]["limitations"]}
+        assert codes == {"no_observation_date", "no_radius_or_confidence", "no_source_attribution"}
+        assert by_domain["hcho"]["quality"]["clusters_matched_to_stations"] == 4
 
     async def test_version_compact_form_matches(self, client_no_db: AsyncClient) -> None:
         version = (await client_no_db.get("/api/v1/version")).json()["data_sources"]

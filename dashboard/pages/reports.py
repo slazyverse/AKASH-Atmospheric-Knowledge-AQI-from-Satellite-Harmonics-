@@ -64,7 +64,7 @@ def _export(title: str, domain: str, df: pd.DataFrame, stem: str) -> None:
     c1, c2 = st.columns([3, 2])
     with c1:
         st.markdown(f"**{title}** — {len(df)} row(s)")
-        render_source_badge(domain)
+        render_source_badge(domain, compact=True)
     with c2:
         st.download_button(
             "Download CSV",

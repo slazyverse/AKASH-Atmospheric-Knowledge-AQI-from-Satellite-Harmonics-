@@ -124,7 +124,7 @@ class Settings(BaseSettings):
     # Path to a fire-detection JSON file (see app/data/fires.py contract).
     FIRE_EVENTS_PATH: str | None = None
     # Look for team outputs at their documented locations in the repository
-    # (e.g. <repo>/analysis_ready_dataset.csv, <repo>/reports/cluster_summary.json).
+    # (see app/data/sources.py DISCOVERY_PATHS / MODEL_DISCOVERY_DIRS).
     AUTO_DISCOVER_TEAM_OUTPUTS: bool = True
     # Fall back to the bundled, clearly-labelled placeholder fixtures when no
     # team output is available. Set false to report those domains unavailable.

@@ -33,6 +33,7 @@ def _registry() -> list[dict]:
             "network": o.network or "unknown",
             "is_active": True,
             "elevation_m": o.elevation_m,
+            "location_quality": sources.dataset.location_quality,
         }
         for o in sorted(sources.dataset.latest_per_station(), key=lambda o: o.station_id)
     ]

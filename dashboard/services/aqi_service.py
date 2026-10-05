@@ -38,6 +38,7 @@ class AQIReading:
     co: float | None               # mg/m³
     o3: float | None               # µg/m³
     recorded_at: datetime          # observation time from the source (never "now")
+    location_quality: str = "reported"  # "approximate" = shared fallback coordinates
 
 
 @dataclass
@@ -68,6 +69,7 @@ def _parse_reading(r: dict[str, Any]) -> AQIReading:
         co=r.get("co"),
         o3=r.get("o3"),
         recorded_at=datetime.fromisoformat(r["recorded_at"].replace("Z", "+00:00")),
+        location_quality=r.get("location_quality", "reported"),
     )
 
 

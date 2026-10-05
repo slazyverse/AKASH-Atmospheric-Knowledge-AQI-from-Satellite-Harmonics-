@@ -17,7 +17,7 @@ Models:
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -57,6 +57,13 @@ class StationItem(BaseModel):
     elevation_m: float | None = Field(
         default=None,
         description="Station elevation above mean sea level in metres, if known.",
+    )
+    location_quality: Literal["reported", "approximate"] = Field(
+        default="reported",
+        description=(
+            "'approximate' when the source's coordinates are shared fallbacks (many stations "
+            "on one point) rather than station positions — do not map them as locations."
+        ),
     )
 
     model_config = {

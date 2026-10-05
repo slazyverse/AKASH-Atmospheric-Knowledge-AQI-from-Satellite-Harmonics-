@@ -14,7 +14,7 @@ AQI Categories follow the CPCB (Central Pollution Control Board) India scale:
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -63,6 +63,13 @@ class StationReading(BaseModel):
     co: float | None   = Field(default=None, ge=0, description="CO concentration in mg/m³.")
     o3: float | None   = Field(default=None, ge=0, description="O₃ concentration in µg/m³.")
     recorded_at: datetime = Field(description="UTC timestamp of this observation.")
+    location_quality: Literal["reported", "approximate"] = Field(
+        default="reported",
+        description=(
+            "'approximate' when the source's coordinates are shared fallbacks (many stations "
+            "on one point) rather than station positions — do not map them as locations."
+        ),
+    )
 
     model_config = {
         "json_schema_extra": {

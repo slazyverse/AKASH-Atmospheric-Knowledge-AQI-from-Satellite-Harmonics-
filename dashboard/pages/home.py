@@ -61,7 +61,7 @@ def render() -> None:
         ("aqi", "AQI & stations"), ("hcho", "HCHO hotspots"), ("fire", "Fire detections"),
         ("forecast", "Forecast"), ("model", "Trained model"), ("spatial_rasters", "GIS rasters"),
     ):
-        render_source_badge(domain, what)
+        render_source_badge(domain, what, compact=True)
 
     st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
 
@@ -199,7 +199,7 @@ def _render_module_cards() -> None:
             "name": "Surface AQI",
             "icon": "🌫️",
             "color": AQI_VERY_POOR,
-            "description": "Station AQI readings, pollutant breakdown, map and observed station history. Source: " + source_label("aqi") + ".",
+            "description": "Station AQI readings, pollutant breakdown, observed station history and a map when coordinates are station positions. Source: " + source_label("aqi") + ".",
             "status": _status("aqi"),
         },
         {
@@ -291,7 +291,8 @@ def _render_sprint_progress() -> None:
         ("Day 4", "Charts + GIS Maps",      "✅ Complete", AQI_GOOD,    "Plotly charts, Folium maps, raster-layer interfaces (placeholders), SHAP chart component"),
         ("Day 5", "Team-Output Adapters",   "✅ Complete", AQI_GOOD,    "Dataset / hotspot / model-artefact loaders with fail-fast validation"),
         ("Day 6", "End-to-End Sources",     "✅ Complete", AQI_GOOD,    "Placeholder fixtures in team contracts, source status, observed history, forecast interface"),
-        ("Day 7", "Database & Reports",     "⏳ Planned",  TEXT_MUTED,  "PostgreSQL/PostGIS persistence, PDF summaries (CSV exports already available)"),
+        ("Day 7", "Team-Output Integration", "✅ Complete", AQI_GOOD,   "Adapter validation of PR #7/#8 outputs, source limitations, map restrictions, model production gate"),
+        ("Day 8", "Database & Reports",     "⏳ Planned",  TEXT_MUTED,  "PostgreSQL/PostGIS persistence, PDF summaries (CSV exports already available)"),
     ]
 
     for day, title, status, color, detail in days:

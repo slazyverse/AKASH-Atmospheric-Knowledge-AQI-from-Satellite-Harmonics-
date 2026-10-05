@@ -33,6 +33,7 @@ logger = get_logger(__name__)
 
 
 def _reading(o: Observation) -> StationReading:
+    ds = sources.dataset
     return StationReading(
         station_id=o.station_id,
         station_name=o.station_name,
@@ -47,6 +48,7 @@ def _reading(o: Observation) -> StationReading:
         co=o.co,
         o3=o.o3,
         recorded_at=o.observed_at,
+        location_quality=ds.location_quality if ds else "reported",
     )
 
 

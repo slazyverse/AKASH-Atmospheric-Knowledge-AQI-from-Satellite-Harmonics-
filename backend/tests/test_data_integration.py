@@ -111,13 +111,27 @@ def model_dir(tmp_path: Path) -> Path:
         json.dumps({"Wind Speed": 30, "HCHO": 50, "Temperature": 20}), encoding="utf-8"
     )
     (root / "lightgbm_training_summary.json").write_text(
-        json.dumps({
-            "target_column": "AQI", "test_samples": 76,
-            "reproducibility": {"lightgbm_version": "9.9.9"},
-        }),
-        encoding="utf-8",
+        json.dumps(VALIDATED_SUMMARY), encoding="utf-8"
     )
     return root
+
+
+# Everything the production gate needs (synthetic test values, not a real run)
+VALIDATED_SUMMARY = {
+    "target_column": "AQI", "test_samples": 76,
+    "feature_names": ["Wind Speed", "HCHO", "Temperature"],
+    "trained_at": "2026-07-20T10:00:00Z", "split_strategy": "temporal",
+    "reproducibility": {"lightgbm_version": "9.9.9", "sklearn_version": "9.9.9"},
+}
+# Exactly the keys model_training/lightgbm_model.py (PR #7) writes today
+TEAM_TRAINER_SUMMARY = {
+    "target_column": "AQI", "train_samples": 300, "validation_samples": 76,
+    "test_samples": 76, "features_count": 3, "validation_status": "PASS",
+    "reproducibility": {
+        "python_version": "3.11.9", "lightgbm_version": "9.9.9",
+        "sklearn_version": "9.9.9", "random_seed": 42,
+    },
+}
 
 
 @pytest.fixture(autouse=True)

@@ -29,6 +29,9 @@ class HCHOHotspot:
     source_type: str                # industrial | biogenic | biomass_burning | unknown
     confidence: float | None        # 0.0 – 1.0; None = not scored
     detected_at: datetime | None    # None = source carries no date
+    station_count: int | None = None
+    member_locations: int | None = None   # distinct station locations behind the cluster
+    location_quality: str = "reported"    # approximate | unverified | reported
 
 
 @dataclass
@@ -37,6 +40,8 @@ class HCHOTrendPoint:
     obs_date: date
     mean_column_density: float     # molecules/cm² × 10¹⁵
     station_count: int
+    location_count: int = 0         # distinct sampling locations averaged
+    date_basis: str = "station_observation_date"
 
 
 class HCHOService:
@@ -69,6 +74,9 @@ class HCHOService:
                         datetime.fromisoformat(h["detected_at"].replace("Z", "+00:00"))
                         if h.get("detected_at") else None
                     ),
+                    station_count=h.get("station_count"),
+                    member_locations=h.get("member_locations"),
+                    location_quality=h.get("location_quality", "reported"),
                 )
                 for h in items
             ]
@@ -78,12 +86,16 @@ class HCHOService:
     def get_trend(self, days: int = 30) -> list[HCHOTrendPoint]:
         """Daily station-collocated HCHO means (GET /api/v1/hcho/trend); [] if unavailable."""
         try:
-            points = self._client.get("/hcho/trend", params={"days": days}).data.get("points", [])
+            data = self._client.get("/hcho/trend", params={"days": days}).data
+            points = data.get("points", [])
+            basis = data.get("date_basis", "station_observation_date")
             return [
                 HCHOTrendPoint(
                     obs_date=date.fromisoformat(p["obs_date"]),
                     mean_column_density=p["mean_column_density"],
                     station_count=p["station_count"],
+                    location_count=p.get("location_count", p["station_count"]),
+                    date_basis=basis,
                 )
                 for p in points
             ]
