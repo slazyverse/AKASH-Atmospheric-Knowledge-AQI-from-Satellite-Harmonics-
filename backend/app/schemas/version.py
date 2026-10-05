@@ -24,8 +24,8 @@ class VersionResponse(BaseModel):
     data_sources: dict[str, str] = Field(
         default_factory=dict,
         description=(
-            "Which source backs each domain: 'demo', 'dataset:<file>', 'hotspot_file', "
-            "'simulated', 'artifact:<dir>' or 'none'. Lets clients label demo vs real data."
+            "Compact source per domain: '<kind>:<name>' or '<kind>' with kind in "
+            "live | local | placeholder | simulated | unavailable. Details: GET /api/v1/sources."
         ),
     )
 
@@ -38,8 +38,8 @@ class VersionResponse(BaseModel):
                 "environment": "development",
                 "python_version": "3.11.9",
                 "data_sources": {
-                    "stations": "demo", "aqi": "demo", "hcho": "demo",
-                    "fire": "demo", "forecast": "simulated", "model": "none",
+                    "aqi": "placeholder:placeholder_station_dataset.csv",
+                    "forecast": "simulated", "model": "unavailable",
                 },
             }
         }

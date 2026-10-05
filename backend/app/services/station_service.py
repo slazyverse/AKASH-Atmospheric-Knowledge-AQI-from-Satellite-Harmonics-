@@ -1,12 +1,12 @@
 """
 backend/app/services/station_service.py — Station metadata service.
 
-Business logic for CPCB monitoring station registry queries.
-Station metadata is quasi-static (updates only when new stations are commissioned).
+Business logic for monitoring-station registry queries.
 
-Data source: the team's station dataset when DATASET_PATH is configured
-(one entry per station, from its latest observation); otherwise a static demo
-(stub) list — not real CPCB data.
+The registry is derived from the resolved station dataset (app.data.sources):
+one entry per station, from its latest observation, sorted by station ID. It
+is the single source of valid station IDs — /forecast and /aqi/history
+validate against it, so every endpoint agrees on which stations exist.
 """
 
 from __future__ import annotations
@@ -17,28 +17,11 @@ from app.schemas.stations import StationItem, StationsResponse
 
 logger = get_logger(__name__)
 
-# ── Demo (stub) station registry ──────────────────────────────────────────────
-
-_STUB_STATIONS: list[dict] = [
-    {"station_id": "DL001", "station_name": "Delhi – Anand Vihar",       "latitude": 28.6469, "longitude": 77.3164, "state": "Delhi",       "city": "Delhi",       "network": "CPCB", "is_active": True,  "elevation_m": 216.0},
-    {"station_id": "DL002", "station_name": "Delhi – Dwarka",             "latitude": 28.5921, "longitude": 77.0460, "state": "Delhi",       "city": "Delhi",       "network": "CPCB", "is_active": True,  "elevation_m": 214.0},
-    {"station_id": "MU001", "station_name": "Mumbai – Bandra Kurla",      "latitude": 19.0600, "longitude": 72.8777, "state": "Maharashtra", "city": "Mumbai",      "network": "CPCB", "is_active": True,  "elevation_m": 14.0},
-    {"station_id": "MU002", "station_name": "Mumbai – Worli",             "latitude": 19.0176, "longitude": 72.8156, "state": "Maharashtra", "city": "Mumbai",      "network": "SAFAR","is_active": True,  "elevation_m": 11.0},
-    {"station_id": "BL001", "station_name": "Bengaluru – Silk Board",     "latitude": 12.9170, "longitude": 77.6230, "state": "Karnataka",   "city": "Bengaluru",   "network": "CPCB", "is_active": True,  "elevation_m": 920.0},
-    {"station_id": "HY001", "station_name": "Hyderabad – ICRISAT",        "latitude": 17.5050, "longitude": 78.2764, "state": "Telangana",   "city": "Hyderabad",   "network": "CPCB", "is_active": True,  "elevation_m": 549.0},
-    {"station_id": "CH001", "station_name": "Chennai – Alandur",          "latitude": 13.0012, "longitude": 80.2055, "state": "Tamil Nadu",  "city": "Chennai",     "network": "CPCB", "is_active": True,  "elevation_m": 16.0},
-    {"station_id": "KO001", "station_name": "Kolkata – Rabindra Bharati", "latitude": 22.5958, "longitude": 88.3699, "state": "West Bengal", "city": "Kolkata",     "network": "CPCB", "is_active": True,  "elevation_m": 9.0},
-    {"station_id": "PU001", "station_name": "Pune – Lohegaon",            "latitude": 18.5976, "longitude": 73.9144, "state": "Maharashtra", "city": "Pune",        "network": "CPCB", "is_active": True,  "elevation_m": 559.0},
-    {"station_id": "AH001", "station_name": "Ahmedabad – AUDA",           "latitude": 23.0225, "longitude": 72.5714, "state": "Gujarat",     "city": "Ahmedabad",   "network": "CPCB", "is_active": True,  "elevation_m": 53.0},
-    {"station_id": "JA001", "station_name": "Jaipur – Chandpole",         "latitude": 26.9260, "longitude": 75.8235, "state": "Rajasthan",   "city": "Jaipur",      "network": "SPCB", "is_active": True,  "elevation_m": 431.0},
-    {"station_id": "LK001", "station_name": "Lucknow – Talkatora",        "latitude": 26.8467, "longitude": 80.9462, "state": "Uttar Pradesh","city": "Lucknow",    "network": "CPCB", "is_active": True,  "elevation_m": 111.0},
-]
-
 
 def _registry() -> list[dict]:
-    """Station records from the configured dataset, or the demo list."""
+    """Station records from the resolved dataset ([] when no source is available)."""
     if sources.dataset is None:
-        return _STUB_STATIONS
+        return []
     return [
         {
             "station_id": o.station_id,
@@ -57,13 +40,10 @@ def _registry() -> list[dict]:
 
 class StationService:
     """
-    Service class for CPCB station registry queries.
+    Service class for station registry queries.
 
     Provides station metadata used for map rendering and station selectors.
     Does not include readings (use AQIService for those).
-
-    This registry is the single source of valid station IDs: /forecast
-    validates against it so /stations and /forecast always agree.
     """
 
     def get_station(self, station_id: str, active_only: bool = True) -> dict | None:
@@ -81,11 +61,11 @@ class StationService:
         limit: int = 100,
     ) -> StationsResponse:
         """
-        Return a filtered list of CPCB monitoring stations.
+        Return a filtered list of monitoring stations.
 
         Args:
             state:       Filter by Indian state name (case-insensitive partial match).
-            network:     Filter by monitoring network (CPCB | SPCB | SAFAR).
+            network:     Filter by monitoring network (e.g. CPCB | SPCB | unknown).
             active_only: If True, exclude stations not currently transmitting.
             limit:       Maximum number of stations to return.
 

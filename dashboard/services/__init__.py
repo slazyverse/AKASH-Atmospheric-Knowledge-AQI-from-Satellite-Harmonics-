@@ -14,7 +14,6 @@ from dashboard.services.aqi_service import SurfaceAQIService, surface_aqi_servic
 from dashboard.services.fire_service import FireMonitoringService, fire_service
 from dashboard.services.forecast_service import ForecastService, forecast_service
 from dashboard.services.hcho_service import HCHOService, hcho_service
-from dashboard.services.report_service import ReportService, report_service
 from dashboard.services.xai_service import XAIService, xai_service
 
 __all__ = [
@@ -28,12 +27,10 @@ __all__ = [
     "fire_service",
     "forecast_service",
     "xai_service",
-    "report_service",
     # Service classes (for DI in tests)
     "SurfaceAQIService",
     "HCHOService",
     "FireMonitoringService",
     "ForecastService",
     "XAIService",
-    "ReportService",
 ]

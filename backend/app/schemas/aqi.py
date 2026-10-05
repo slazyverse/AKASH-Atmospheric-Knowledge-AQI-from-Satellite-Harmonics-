@@ -155,3 +155,16 @@ class AQIDailyListResponse(BaseModel):
             }
         }
     }
+
+
+# ── Station history ────────────────────────────────────────────────────────────
+
+class AQIHistoryResponse(BaseModel):
+    """Envelope for GET /api/v1/aqi/history — observations from the data source, oldest first."""
+
+    station_id: str = Field(description="Station identifier.")
+    station_name: str = Field(description="Human-readable station name.")
+    count: int = Field(ge=0, description="Number of observations returned.")
+    points: list[StationReading] = Field(
+        description="Observed readings (never simulated); pollutants null when not reported.",
+    )

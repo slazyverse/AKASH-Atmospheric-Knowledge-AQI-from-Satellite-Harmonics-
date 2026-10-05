@@ -5,37 +5,67 @@ surface AQI from Sentinel-5P TROPOMI, MODIS and ERA5 data trained against CPCB g
 detect HCHO hotspots, monitor fires, and present the results through a FastAPI backend and a
 Streamlit dashboard.
 
-> **Development status — read this first.** The backend and dashboard work end to end. By
-> default every domain endpoint serves **static demo data** and the forecast is a **simulated
-> baseline**. The backend can load the team's real outputs (station dataset, HCHO hotspot
-> clusters, trained-model metadata) through optional settings — see
-> [Connecting the team's outputs](#connecting-the-teams-outputs). `GET /api/v1/version` reports
-> which source is live, and the dashboard labels demo / simulated / team data accordingly.
+> **Read this first.** The backend and dashboard run end to end. Every domain is served from a
+> resolved **source**: the team's real output when it is available, otherwise a bundled,
+> clearly-labelled **placeholder fixture** that uses the exact same contract. `GET /api/v1/sources`
+> reports what powers each feature, and every dashboard page shows it as a badge:
+> **LIVE · LOCAL (team output) · PLACEHOLDER (not real data) · SIMULATED · UNAVAILABLE**.
 
-## What is real today
+## Architecture
 
-| Area | Status | Notes |
+```text
+team output file  ─┐
+placeholder fixture ┴─► SOURCE ADAPTER ─► NORMALISED CONTRACT ─► SERVICE ─► API ─► DASHBOARD
+                         (backend/app/data)   (validated, nullable,   (backend/   (/api/v1)  (source badge
+                                               units converted)        app/services)          on every page)
+```
+
+Resolution per domain at API startup (`backend/app/data/sources.py`):
+
+1. **Explicit path** setting → `local`. An invalid file **stops the API at startup**.
+2. **Auto-discovered** team output at its documented repo location → `local`. If it is
+   incompatible it is skipped and the reason appears in `GET /api/v1/sources`.
+3. **Placeholder fixture** (`backend/app/data/fixtures/`) → `placeholder` (if `ENABLE_PLACEHOLDER_DATA`).
+4. Otherwise → `unavailable`.
+
+Placeholders use the same contract as the real source, so plugging in a teammate's artefact is
+a **configuration change only** — no service, API or dashboard change.
+
+## What powers each feature today
+
+| Feature | Source today | Real source (when delivered) |
 |---|---|---|
-| Backend API (FastAPI) | ✅ Working | Health, version, AQI, HCHO, fire, forecast and station endpoints; filters and validation are tested |
-| AQI / stations data | 🟡 Demo by default | Team dataset when `DATASET_PATH` is set; otherwise 8 demo AQI stations / 12 registry stations |
-| HCHO hotspots | 🟡 Demo by default | Team `cluster_summary.json` when `HCHO_HOTSPOTS_PATH` is set; otherwise 5 demo hotspots |
-| Fire data | 🟡 Demo data | 5 demo events, 2 illustrative alerts (no fire-detection source exists yet) |
-| Forecast | 🟡 Simulated | Deterministic diurnal curve seeded from the station's demo reading; metrics are `null`, no feature importances |
-| Dashboard (Streamlit, 7 modules) | ✅ Working | Every page renders against the API; offline demo fallback when the backend is unreachable |
-| Surface AQI / HCHO trend charts | 🟡 Simulated | Generated in the page (random walk / seasonal sine); clearly labelled |
-| Explainable AI page | 🟡 Partly real | Trained-model metrics + importances when a model artefact is loaded; SHAP / counterfactual sections are hardcoded examples |
-| Reports page | ⚪ Placeholder | List and form only; no report generation |
-| Raster map overlays (AQI / HCHO / fire) | ⚪ Placeholder | Layer slots exist; no raster data source |
-| Database (PostgreSQL / PostGIS) | ⚪ Configured only | Engine, health probe and PostGIS migration; no tables or queries yet |
-| Data collection & ML pipeline | Separate | `data_collection_pipeline/` (data and ML team); the API consumes its output files, it does not import its code |
+| AQI / stations | PLACEHOLDER — 8 stations × 7 days, deterministic | Team `analysis_ready_dataset.csv` (PR #7/#8, not yet on `main`) |
+| HCHO hotspot clusters | PLACEHOLDER — 4 clusters in the `cluster_summary.json` contract | Team `cluster_summary.json` (PR #7 hotspot step) |
+| HCHO daily trend | Derived from the station dataset (placeholder today) | Same, from the team dataset |
+| Fire detections & alerts | PLACEHOLDER — 5 detections; alerts by FRP rule | A fire file in the `app/data/fires.py` contract (no team source yet) |
+| Forecast | SIMULATED — deterministic diurnal baseline | A real forecasting model behind the `Forecaster` interface |
+| Model metrics / global importance | UNAVAILABLE | Team LightGBM artefact (`ML_MODEL_PATH`) |
+| Per-prediction SHAP | UNAVAILABLE | Not produced by any team output yet |
+| GIS rasters (interpolation, Gi*/LISA, HYSPLIT) | UNAVAILABLE — no layer shown | XYZ tile source via `VAYU_*_RASTER_TILES` |
+| Database (PostgreSQL / PostGIS) | Configured only (health probe, PostGIS migration) | Planned |
+
+## What this build does NOT claim
+
+- Placeholder fixtures are **not measurements, detections or model output** — they exist so the
+  system runs and can be tested before the team's artefacts land.
+- The forecast is **not a prediction**: no forecasting model exists. The team's LightGBM model is a
+  **same-day AQI estimator**, not a 72-hour forecaster, and is never presented as one.
+- No model accuracy (R², RMSE, …) is shown unless it comes from a real model artefact.
+- HCHO clusters have no radius, confidence, source attribution or date in the team contract;
+  these stay null / "unknown" and are never invented.
+- Fire alerts are a documented FRP threshold rule; no AQI-impact or smoke-trajectory value exists.
+- No Kriging, Gi*/LISA, HYSPLIT or counterfactual output exists; none is displayed.
+- `dominant_pollutant` is not computed (`N/A`).
 
 ## Repository layout
 
 ```text
 AKASH/
 ├── backend/                   # FastAPI service (app/, tests/, alembic/, Dockerfile, docker-compose.yml)
-├── dashboard/                 # Streamlit dashboard (app.py, pages/, components/, services/, core/)
-├── data_collection_pipeline/  # Data collection, cleaning, feature engineering and ML pipeline
+│   └── app/data/              # source adapters, resolver, placeholder fixtures
+├── dashboard/                 # Streamlit dashboard (app.py, pages/, components/, services/, core/, tests/)
+├── data_collection_pipeline/  # Data collection, cleaning, feature engineering and ML (data/ML team)
 └── PROJECT_CONFIG.yaml        # Project metadata read by the dashboard
 ```
 
@@ -82,24 +112,32 @@ cd backend && uvicorn app.main:app --reload --port 8000
 | `ALLOWED_ORIGINS` | localhost:3000, :5173 | CORS origins; no localhost or `*` in production |
 | `POSTGRES_HOST` / `PORT` / `USER` / `PASSWORD` / `DB` | `localhost` / `5432` / `vayu` / `vayu_password` / `vayu_drishti` | Database connection |
 | `LOG_LEVEL` / `LOG_FORMAT` | `INFO` / `json` | Structured logging |
-| `DATASET_PATH` | empty | Team station dataset CSV (see below); empty → demo data |
-| `HCHO_HOTSPOTS_PATH` | empty | Team `cluster_summary.json`; empty → demo hotspots |
+| `DATASET_PATH` | empty | Team station dataset CSV (explicit → strict) |
+| `HCHO_HOTSPOTS_PATH` | empty | Team `cluster_summary.json` (explicit → strict) |
+| `FIRE_EVENTS_PATH` | empty | Fire-detection JSON (explicit → strict) |
+| `AUTO_DISCOVER_TEAM_OUTPUTS` | `true` | Use `<repo>/analysis_ready_dataset.csv` and `<repo>/reports/cluster_summary.json` when present |
+| `ENABLE_PLACEHOLDER_DATA` | `true` | Fall back to the placeholder fixtures; `false` → those domains report `unavailable` |
 | `ML_MODEL_PATH`, `ENABLE_ML_ENDPOINTS` | empty / `false` | Trained-model artefact directory; loaded only when both are set |
 
 ### API endpoints (`/api/v1`)
 
-| Endpoint | Data source today | Notes |
-|---|---|---|
-| `GET /health` | DB ping | 200 healthy, 503 if the database is unreachable |
-| `GET /version` | Settings | App name, version and `data_sources` (which source backs each domain) |
-| `GET /aqi/daily` | Dataset or demo | `region`: `India`, a zone (`North India`, `Central India`, `East India`, `Northeast India`, `West India`, `South India`), or a state / city. `date` defaults to the latest available date; dates without data → 404, invalid dates → 422. Unreported pollutants are `null` |
-| `GET /stations` | Dataset or demo | `state`, `network`, `active_only`, `limit` filters |
-| `GET /forecast` | Simulated | Any active station from `/stations`; `horizon_hours` 1–72; metrics `null` (also when a model artefact is loaded — that model is not a forecaster) |
-| `GET /hcho/hotspots` | Hotspot file or demo | `min_confidence` (unscored clusters are kept); `date` optional. From the team file, radius / confidence / date are `null` |
-| `GET /fire` | Demo data | `region` (zone / state / district), `min_frp`, `hours`; alerts follow the returned events |
-| `GET /xai/global-importance` | Model artefact | Test-set metrics + normalised LightGBM importances; 404 until an artefact is loaded |
+| Endpoint | Notes |
+|---|---|
+| `GET /health` | 200 healthy, 503 if the database is unreachable |
+| `GET /version` | App name, version and compact `data_sources` |
+| `GET /sources` | Source status per domain: `kind`, `name`, `detail` (incl. why a discovered file was rejected), `records`, `as_of` |
+| `GET /aqi/daily` | `region`: `India`, a zone (`North India`, `Central India`, `East India`, `Northeast India`, `West India`, `South India`) or a state / city. `date` defaults to the source's latest date; no data → 404; invalid date → 422. Unreported pollutants are `null` |
+| `GET /aqi/history` | One station's observations (never simulated), `days` window ending at the source's latest date; unknown station → 404 |
+| `GET /stations` | Registry derived from the station source; `state`, `network`, `active_only`, `limit` |
+| `GET /forecast` | Any station from `/stations`; `horizon_hours` 1–72; `forecast_kind` = `simulated`; `based_on_observation_at`; metrics `null` |
+| `GET /hcho/hotspots` | Clusters, column density in 10¹⁵ molecules/cm²; `min_confidence` keeps unscored clusters; `date` optional |
+| `GET /hcho/trend` | Daily mean satellite HCHO column at the dataset's stations |
+| `GET /fire` | `region` (zone / state / district), `min_frp`, `hours` (window ends at `as_of`, the latest detection); FRP-rule alerts, `aqi_impact_score` null |
+| `GET /xai/global-importance` | Model artefact metrics + normalised LightGBM importances; 404 until an artefact is loaded |
 
-Zones follow the Zonal Councils of India (Ministry of Home Affairs).
+Zones follow the Zonal Councils of India (Ministry of Home Affairs). HCHO unit conversion
+(mol/m² → 10¹⁵ molecules/cm², ×6.02214076e4) lives only in `backend/app/core/units.py`; CPCB AQI
+categories only in `backend/app/core/aqi.py` (mirrored for display in `dashboard/core/theme.py`).
 
 ### Tests
 
@@ -107,29 +145,28 @@ Zones follow the Zonal Councils of India (Ministry of Home Affairs).
 cd backend && python -m pytest
 ```
 
-The suite covers health and version, AQI categories, region and date filters, station and
-forecast consistency, HCHO and fire filters, 422/404 validation, and the data / hotspot /
-model-artefact loaders against synthetic fixtures. No database or real data is needed.
-
-Dashboard compatibility tests (fake API client, no backend needed), from the repository root:
-
 ```bash
 python -m pytest dashboard/tests
 ```
 
+Backend tests cover every source path (explicit, auto-discovered, incompatible, placeholder,
+disabled, invalid), the adapters' contracts, filters, dates, nullable values, unit conversion,
+history / trend, forecast and model states, and `/sources`. Dashboard tests cover the data layer
+against the API contracts with a fake client. No database, network or real data is needed.
+
 ## Connecting the team's outputs
 
-Set any of these in `backend/.env` and restart the API. A configured file that is missing or
-violates its contract stops the API at startup — it never silently falls back to demo data.
+| Team output | Contract | How to plug in |
+|---|---|---|
+| Station dataset (data pipeline) | `analysis_ready_dataset.csv` v1 (`Station ID`, `Station Name`, `State`, `City`, `Latitude`, `Longitude`, `Date`, `Time`, `AQI`, pollutants, `HCHO`) or `analysis_ready_dataset_v2.csv` (`station_id`, `station_latitude`, `timestamp_utc_str`, …) | Merge it to the repo root (auto-discovered) or set `DATASET_PATH` |
+| HCHO hotspot clusters (`spatial_analysis/hotspot_detector.py`) | `cluster_summary.json`: `{cluster_id, mean_latitude, mean_longitude, mean_hcho (mol/m²), station_count, stations}`; optional `radius_km`, `confidence`, `source_type`, `observation_date` are used when present | Write it to `<repo>/reports/cluster_summary.json` or set `HCHO_HOTSPOTS_PATH` |
+| LightGBM artefact (`model_training/lightgbm_model.py`) | `lightgbm_model.joblib` (presence checked, not unpickled), `lightgbm_evaluation_metrics.json` (`R2`, `RMSE`, `MAE`, `MBE`), `lightgbm_feature_importances.json`, optional `lightgbm_training_summary.json` | Set `ML_MODEL_PATH` + `ENABLE_ML_ENDPOINTS=true` |
+| Fire detections | JSON list in `backend/app/data/fires.py` (`event_id`, `latitude`, `longitude`, `frp`, `brightness`, `satellite`, `confidence`, `detected_at`, …) | Set `FIRE_EVENTS_PATH` |
+| Forecasting model | Implement `Forecaster` in `backend/app/services/forecast_service.py` (`kind = "model"`) | Register it in `ForecastService`; API and dashboard already carry `forecast_kind` |
+| Raster layers | XYZ tile template (e.g. TiTiler over team COGs) | `VAYU_AQI_RASTER_TILES`, `VAYU_HCHO_RASTER_TILES`, `VAYU_FIRE_RASTER_TILES` (dashboard env) |
 
-| Setting | Expected input (produced by `data_collection_pipeline/`) |
-|---|---|
-| `DATASET_PATH` | `analysis_ready_dataset.csv` (v1: `Station ID`, `Station Name`, `State`, `City`, `Latitude`, `Longitude`, `Date`, `Time`, `AQI`, pollutants) or `analysis_ready_dataset_v2.csv` (v2: `station_id`, `station_name`, `state`, `city`, `station_latitude`, `station_longitude`, `timestamp_utc_str`, …). Rows without station ID, coordinates or AQI are skipped and counted; nothing is imputed |
-| `HCHO_HOTSPOTS_PATH` | `cluster_summary.json`: list of `{cluster_id, mean_latitude, mean_longitude, mean_hcho (mol/m²), station_count, stations}`; optional `radius_km`, `confidence`, `source_type`, `observation_date` are used when present. HCHO is converted to 10¹⁵ molecules/cm² |
-| `ML_MODEL_PATH` + `ENABLE_ML_ENDPOINTS=true` | Directory with `lightgbm_model.joblib` (presence checked, not loaded), `lightgbm_evaluation_metrics.json` (`R2`, `RMSE`, `MAE`, `MBE`), `lightgbm_feature_importances.json`, optional `lightgbm_training_summary.json` |
-
-The model binary is not unpickled: that needs the exact scikit-learn / LightGBM versions it was
-trained with, and no endpoint serves its predictions yet.
+After restarting the API, `GET /api/v1/sources` must show `local` for the domain; the dashboard
+badges follow automatically.
 
 ## Dashboard
 
@@ -153,23 +190,16 @@ Then open http://localhost:8501.
 | `VAYU_API_V1_PREFIX` | `/api/v1` | API prefix |
 | `VAYU_API_TIMEOUT` | `30` | Request timeout in seconds |
 | `VAYU_APP_NAME`, `VAYU_APP_VERSION`, `VAYU_STATUS` | from `PROJECT_CONFIG.yaml` | Display metadata |
+| `VAYU_AQI_RASTER_TILES` etc. | empty | Optional real raster tile sources (no layer is shown without them) |
 
-If the backend is unreachable, pages show built-in offline demo data (the forecast page shows
-"unavailable"). A filter that legitimately matches nothing shows an empty state, never demo data.
+The dashboard keeps **no hardcoded data**. If the backend is unreachable every section shows
+UNAVAILABLE; a filter that matches nothing shows an empty state.
 
-## Current limitations
+## Remaining external dependencies
 
-- Without the settings above, all domain data is demo data. Fire data is always demo data.
-- No model predictions are served; forecasts are simulated and forecast metrics are `null`.
-- Trend charts, SHAP / counterfactual examples, HCHO source attribution and fire-alert impact
-  scores are illustrative.
-- `dominant_pollutant` is not computed (`N/A` with the team dataset).
-- No database tables, persistence, authentication, report generation or raster layers yet.
-
-## Next integration steps
-
-1. Point `DATASET_PATH`, `HCHO_HOTSPOTS_PATH` and `ML_MODEL_PATH` at the team's delivered
-   outputs (the loaders, adapters and dashboard handling are in place).
-2. Serve model predictions once a forecasting model (or an agreed estimate endpoint) and its
-   exact library versions are delivered.
-3. Persist time series and geometries in PostgreSQL / PostGIS.
+- Corrected team dataset with per-station coordinates (current PR #7/#8 file collapses 502
+  stations onto 48 coordinates) and its merge to `main`.
+- `cluster_summary.json` committed/delivered, ideally with an observation date.
+- LightGBM artefact plus the exact scikit-learn / LightGBM versions it was trained with.
+- A forecasting model; per-prediction SHAP output; a fire-detection source; raster tiles.
+- Database persistence (PostgreSQL / PostGIS) and PDF reports — planned on our side.

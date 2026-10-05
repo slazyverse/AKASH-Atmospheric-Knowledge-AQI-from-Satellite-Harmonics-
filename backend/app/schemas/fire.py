@@ -99,9 +99,13 @@ class FireAlertItem(BaseModel):
         description="Alert severity level. One of: moderate | high | critical.",
         examples=["critical"],
     )
-    aqi_impact_score: float = Field(
+    aqi_impact_score: float | None = Field(
+        default=None,
         ge=0,
-        description="Estimated AQI increase at the nearest downwind station attributable to this fire.",
+        description=(
+            "Estimated AQI increase at downwind stations. Always null today: no "
+            "smoke-transport / impact model exists, so no value is produced."
+        ),
     )
     message: str = Field(description="Human-readable alert message for operators.")
     issued_at: datetime = Field(description="UTC timestamp when this alert was generated.")
@@ -112,8 +116,8 @@ class FireAlertItem(BaseModel):
                 "alert_id": "A-001",
                 "fire_event_id": "F-2024-001",
                 "severity": "critical",
-                "aqi_impact_score": 87.4,
-                "message": "Extreme fire activity in Jharkhand forest. AQI spike expected in 6–8 hours.",
+                "aqi_impact_score": None,
+                "message": "VIIRS-SNPP detection with FRP 210 MW in Lohit, Arunachal Pradesh.",
                 "issued_at": "2026-07-07T04:20:00Z",
             }
         }
@@ -131,6 +135,10 @@ class FireResponse(BaseModel):
     total_events: int = Field(ge=0, description="Total number of fire events returned.")
     total_alerts: int = Field(ge=0, description="Total number of active alerts.")
     hours_window: int = Field(ge=1, description="Time window in hours over which events were queried.")
+    as_of: datetime | None = Field(
+        default=None,
+        description="Latest detection time in the source; the hours window ends here.",
+    )
     events: list[FireEventItem] = Field(description="Active fire detection points.")
     alerts: list[FireAlertItem] = Field(description="High-severity fire alerts.")
 

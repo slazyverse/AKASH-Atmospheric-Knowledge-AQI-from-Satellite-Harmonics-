@@ -25,7 +25,7 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.exceptions import DomainValidationError, NotFoundError
 from app.core.logging import get_logger
-from app.schemas.aqi import AQIDailyListResponse
+from app.schemas.aqi import AQIDailyListResponse, AQIHistoryResponse
 from app.services.aqi_service import AQIService, aqi_service
 
 logger = get_logger(__name__)
@@ -44,10 +44,10 @@ router = APIRouter()
         "while the `summary.readings` array contains per-station observations, capped at `limit`. "
         "`region` accepts 'India' (all), a zone ('North India', 'Central India', 'East India', "
         "'Northeast India', 'West India', 'South India'), or a state / city name. "
-        "Data source: the team's station dataset when `DATASET_PATH` is configured (each "
-        "station's latest observation on the date; pollutants are null when not reported); "
-        "otherwise a static demo snapshot (8 stations, today only) — not real measurements. "
-        "`GET /api/v1/version` reports which source is active. Dates without data return 404."
+        "Data source: the resolved station dataset — team output when available, otherwise "
+        "the bundled placeholder fixture (not real measurements); `GET /api/v1/sources` "
+        "reports which. Each station's latest observation on the date is used; pollutants "
+        "are null when not reported. Dates without data return 404."
     ),
     tags=["aqi"],
     responses={
@@ -77,7 +77,7 @@ async def get_aqi_daily(
         alias="date",
         description=(
             "Target date in ISO 8601 format (YYYY-MM-DD). "
-            "Defaults to the latest available date (today UTC for demo data)."
+            "Defaults to the latest date in the data source."
         ),
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
@@ -122,4 +122,39 @@ async def get_aqi_daily(
             detail={"region": region, "date": str(query_date)},
         )
 
+    return result
+
+
+@router.get(
+    "/aqi/history",
+    response_model=AQIHistoryResponse,
+    summary="Station AQI History",
+    description=(
+        "Returns one station's observations from the data source, oldest first, over the last "
+        "`days` days of the source (the window ends at the source's latest date). Values are "
+        "observations from the resolved dataset — never simulated. Single-date sources return "
+        "a single point. `GET /api/v1/sources` reports whether the dataset is team output or "
+        "a placeholder."
+    ),
+    tags=["aqi"],
+    responses={
+        status.HTTP_404_NOT_FOUND: {"description": "Station not found in the data source."},
+    },
+)
+async def get_aqi_history(
+    station_id: str = Query(
+        min_length=1,
+        max_length=50,
+        description="Station identifier from GET /api/v1/stations.",
+    ),
+    days: int = Query(default=30, ge=1, le=366, description="Window length in days."),
+    service: AQIService = Depends(lambda: aqi_service),
+) -> AQIHistoryResponse:
+    """Return the station's observation history from the AQI service."""
+    result = service.get_history(station_id=station_id, days=days)
+    if result is None:
+        raise NotFoundError(
+            message=f"Station '{station_id}' not found in the data source.",
+            detail={"station_id": station_id},
+        )
     return result

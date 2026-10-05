@@ -103,13 +103,19 @@ def _float(raw: str | None) -> float | None:
     return value if math.isfinite(value) else None
 
 
-def _timestamp(row: dict[str, str], cols: dict[str, str]) -> datetime | None:
+def _cell(row: dict[str, str | None], column: str) -> str:
+    # csv.DictReader fills the missing cells of a short (ragged) row with None
+    return (row.get(column) or "").strip()
+
+
+def _timestamp(row: dict[str, str | None], cols: dict[str, str]) -> datetime | None:
     if "timestamp" in cols:
-        text = row.get(cols["timestamp"], "").strip()
+        text = _cell(row, cols["timestamp"])
     else:
-        text = row.get(cols["date"], "").strip()
-        if text and "time" in cols and row.get(cols["time"], "").strip():
-            text = f"{text}T{row[cols['time']].strip()}"
+        text = _cell(row, cols["date"])
+        time_text = _cell(row, cols["time"]) if "time" in cols else ""
+        if text and time_text:
+            text = f"{text}T{time_text}"
     if not text:
         return None
     try:
@@ -120,9 +126,9 @@ def _timestamp(row: dict[str, str], cols: dict[str, str]) -> datetime | None:
     return parsed.astimezone(UTC) if parsed.tzinfo else parsed.replace(tzinfo=UTC)
 
 
-def _parse_row(row: dict[str, str], cols: dict[str, str]) -> Observation | None:
+def _parse_row(row: dict[str, str | None], cols: dict[str, str]) -> Observation | None:
     def get(field: str) -> str:
-        return row.get(cols[field], "").strip() if field in cols else ""
+        return _cell(row, cols[field]) if field in cols else ""
 
     station_id = get("station_id")
     lat, lon = _float(get("latitude")), _float(get("longitude"))
@@ -184,6 +190,17 @@ class StationDataset:
             if current is None or o.observed_at > current.observed_at:
                 latest[o.station_id] = o
         return list(latest.values())
+
+    @property
+    def observations(self) -> tuple[Observation, ...]:
+        return tuple(self._observations)
+
+    def observations_for(self, station_id: str) -> list[Observation]:
+        """All observations of one station, oldest first."""
+        return sorted(
+            (o for o in self._observations if o.station_id == station_id),
+            key=lambda o: o.observed_at,
+        )
 
     def latest_for(self, station_id: str) -> Observation | None:
         matches = [o for o in self._observations if o.station_id == station_id]

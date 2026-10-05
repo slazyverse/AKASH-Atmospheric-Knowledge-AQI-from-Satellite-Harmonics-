@@ -44,7 +44,25 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from app.core.config import Settings
+from app.data.sources import load_configured_sources, sources
 from app.main import app
+
+
+# ── Data sources ──────────────────────────────────────────────────────────────
+
+@pytest.fixture(autouse=True)
+def placeholder_sources():
+    """
+    Load the bundled deterministic placeholder fixtures for every test.
+
+    ASGITransport does not run the app lifespan, so sources are loaded here,
+    with repository auto-discovery disabled so results never depend on which
+    team outputs happen to exist in the checkout.
+    """
+    load_configured_sources(Settings(_env_file=None, AUTO_DISCOVER_TEAM_OUTPUTS=False))
+    yield
+    sources.reset()
 
 
 # ── Engine mock factories ──────────────────────────────────────────────────────

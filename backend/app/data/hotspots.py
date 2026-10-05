@@ -21,11 +21,9 @@ from pathlib import Path
 from typing import Any
 
 from app.core.logging import get_logger
+from app.core.units import hcho_mol_m2_to_1e15_molec_cm2
 
 logger = get_logger(__name__)
-
-# mol/m² → 10¹⁵ molecules/cm²: 6.02214076e23 molec/mol ÷ 1e4 cm²/m² ÷ 1e15
-MOL_M2_TO_1E15_MOLEC_CM2 = 6.02214076e4
 
 _REQUIRED = ("cluster_id", "mean_latitude", "mean_longitude", "mean_hcho")
 
@@ -85,14 +83,20 @@ def _parse(item: Any, index: int) -> HotspotRecord:
             observed_at.astimezone(UTC) if observed_at.tzinfo else observed_at.replace(tzinfo=UTC)
         )
 
+    stations = item.get("stations")
+    if stations is None:
+        stations = []
+    elif not isinstance(stations, list):
+        raise HotspotFileError(f"Cluster #{index} has 'stations' that is not a list.")
+
     count = _number(item.get("station_count"))
     return HotspotRecord(
         hotspot_id=f"HS-{item['cluster_id']}",
         latitude=lat,
         longitude=lon,
-        column_density=round(hcho * MOL_M2_TO_1E15_MOLEC_CM2, 3),
+        column_density=hcho_mol_m2_to_1e15_molec_cm2(hcho),
         station_count=int(count) if count is not None else None,
-        stations=tuple(str(s) for s in item.get("stations", [])),
+        stations=tuple(str(s) for s in stations),
         radius_km=radius if radius is not None and radius >= 0 else None,
         confidence=confidence,
         source_type=str(item.get("source_type") or "unknown"),

@@ -1,0 +1,67 @@
+[
+  {
+    "event_id": "PH-FIRE-001",
+    "latitude": 23.312,
+    "longitude": 85.334,
+    "frp": 142.4,
+    "brightness": 328.7,
+    "satellite": "VIIRS-SNPP",
+    "confidence": "high",
+    "land_cover": "forest",
+    "state": "Jharkhand",
+    "district": "Ranchi",
+    "detected_at": "2026-07-14T06:00:00Z"
+  },
+  {
+    "event_id": "PH-FIRE-002",
+    "latitude": 21.145,
+    "longitude": 81.684,
+    "frp": 87.2,
+    "brightness": 312.4,
+    "satellite": "MODIS",
+    "confidence": "nominal",
+    "land_cover": "cropland",
+    "state": "Chhattisgarh",
+    "district": "Bilaspur",
+    "detected_at": "2026-07-14T02:30:00Z"
+  },
+  {
+    "event_id": "PH-FIRE-003",
+    "latitude": 27.891,
+    "longitude": 95.421,
+    "frp": 210.1,
+    "brightness": 341.2,
+    "satellite": "VIIRS-NOAA20",
+    "confidence": "high",
+    "land_cover": "forest",
+    "state": "Arunachal Pradesh",
+    "district": "Lohit",
+    "detected_at": "2026-07-13T23:00:00Z"
+  },
+  {
+    "event_id": "PH-FIRE-004",
+    "latitude": 15.312,
+    "longitude": 75.712,
+    "frp": 34.6,
+    "brightness": 289.1,
+    "satellite": "MODIS",
+    "confidence": "nominal",
+    "land_cover": "grassland",
+    "state": "Karnataka",
+    "district": "Dharwad",
+    "detected_at": "2026-07-13T18:00:00Z"
+  },
+  {
+    "event_id": "PH-FIRE-005",
+    "latitude": 29.934,
+    "longitude": 78.162,
+    "frp": 58.3,
+    "brightness": 301.6,
+    "satellite": "VIIRS-SNPP",
+    "confidence": "high",
+    "land_cover": "forest",
+    "state": "Uttarakhand",
+    "district": "Haridwar",
+    "detected_at": "2026-07-13T12:00:00Z"
+  }
+]
