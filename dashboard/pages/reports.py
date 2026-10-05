@@ -19,7 +19,7 @@ from dashboard.components import (
 )
 from dashboard.core.theme import PRIMARY
 from dashboard.services import fire_service, hcho_service, surface_aqi_service
-from dashboard.services.data_sources import source_kind
+from dashboard.services.data_sources import trust_level
 
 
 def render() -> None:
@@ -69,7 +69,7 @@ def _export(title: str, domain: str, df: pd.DataFrame, stem: str) -> None:
         st.download_button(
             "Download CSV",
             data=df.to_csv(index=False).encode("utf-8"),
-            file_name=f"{stem}_{source_kind(domain)}.csv",
+            file_name=f"{stem}_{trust_level(domain)}.csv",
             mime="text/csv",
             disabled=df.empty,
             key=f"export_{stem}",

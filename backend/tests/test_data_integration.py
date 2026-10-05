@@ -74,6 +74,12 @@ def v1_csv(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def clean_v1_csv(tmp_path: Path) -> Path:
+    """The three valid V1 rows only: passes the contract gate (no rejected rows)."""
+    return _write(tmp_path / "analysis_ready_dataset.csv", [V1_HEADER, *V1_ROWS[:3]])
+
+
+@pytest.fixture
 def v2_csv(tmp_path: Path) -> Path:
     return _write(tmp_path / "analysis_ready_dataset_v2.csv", [V2_HEADER, *V2_ROWS])
 
@@ -317,28 +323,31 @@ class TestSourceResolution:
         assert sources.dataset is None and sources.hotspots is None and sources.fires is None
 
     def test_explicit_paths_are_local(
-        self, v1_csv: Path, hotspot_json: Path, model_dir: Path, tmp_path: Path
+        self, clean_v1_csv: Path, hotspot_json: Path, model_dir: Path, tmp_path: Path
     ) -> None:
         fires = tmp_path / "fires.json"
         fires.write_text(PLACEHOLDERS["fire"].read_text(encoding="utf-8"), encoding="utf-8")
         load_configured_sources(_settings(
-            DATASET_PATH=str(v1_csv), HCHO_HOTSPOTS_PATH=str(hotspot_json),
+            DATASET_PATH=str(clean_v1_csv), HCHO_HOTSPOTS_PATH=str(hotspot_json),
             FIRE_EVENTS_PATH=str(fires), ML_MODEL_PATH=str(model_dir), ENABLE_ML_ENDPOINTS=True,
         ))
         d = sources.describe()
         assert d["aqi"] == "local:analysis_ready_dataset.csv"
         assert d["hcho"] == "local:cluster_summary.json"
         assert d["fire"] == "local:fires.json"
-        assert d["model"] == "local:lightgbm_run"
-        assert d["xai_global"] == "local:lightgbm_run"
+        # A model whose load was never checked is found but withheld, not served
+        assert d["model"] == "withheld:lightgbm_run"
+        assert sources.status("model").trust == "unverified"
+        assert d["xai_global"] == "unavailable"
         assert d["forecast"] == "simulated"  # a loaded estimator never becomes a forecaster
+        assert {sources.status(x).origin for x in ("aqi", "hcho", "fire")} == {"configured"}
         assert sources.status("stations").records == 3
         assert sources.status("aqi").as_of == "2026-07-14"
 
     def test_auto_discovered_team_output_is_used(
-        self, v1_csv: Path, monkeypatch: pytest.MonkeyPatch
+        self, clean_v1_csv: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "dataset", (v1_csv,))
+        monkeypatch.setitem(sources_module.DISCOVERY_PATHS, "dataset", (clean_v1_csv,))
         load_configured_sources(Settings(_env_file=None))
         status_ = sources.status("aqi")
         assert (status_.kind, status_.name) == ("local", "analysis_ready_dataset.csv")
@@ -513,9 +522,9 @@ class TestEndpointsWithDataset:
         assert data["model_metrics"]["r_squared"] is None
 
     async def test_sources_and_version_report_dataset(
-        self, client_no_db: AsyncClient, v1_csv: Path
+        self, client_no_db: AsyncClient, clean_v1_csv: Path
     ) -> None:
-        load_configured_sources(_settings(DATASET_PATH=str(v1_csv)))
+        load_configured_sources(_settings(DATASET_PATH=str(clean_v1_csv)))
         data = (await client_no_db.get("/api/v1/version")).json()
         assert data["data_sources"]["aqi"] == "local:analysis_ready_dataset.csv"
         assert data["data_sources"]["hcho"] == "placeholder:placeholder_hcho_clusters.json"
@@ -592,8 +601,8 @@ class TestXAIGlobalImportance:
         data = (await client_no_db.get("/api/v1/xai/global-importance")).json()
         m = data["model_metrics"]
         assert (m["r_squared"], m["rmse"], m["mae"]) == (0.5, 40.0, 30.0)
-        assert m["training_date"] is None
-        assert m["validation_period"] == "Held-out test split (76 rows)"
+        assert m["training_date"] == "2026-07-20"  # trained_at from the summary
+        assert m["validation_period"] == "Held-out temporal split (76 rows)"
         assert data["mean_bias_error"] == -1.5
         assert data["target_column"] == "AQI"
         assert "not SHAP" in data["importance_method"]

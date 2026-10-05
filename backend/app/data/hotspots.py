@@ -124,6 +124,9 @@ def load_hotspots(path: str | Path) -> list[HotspotRecord]:
         raise HotspotFileError("Hotspot file must contain a JSON list of clusters.")
 
     records = [_parse(item, i) for i, item in enumerate(payload)]
+    ids = [r.hotspot_id for r in records]
+    if len(ids) != len(set(ids)):
+        raise HotspotFileError("Hotspot file contains duplicate cluster_id values.")
     logger.info("HCHO hotspot clusters loaded", file=file.name, clusters=len(records))
     return records
 

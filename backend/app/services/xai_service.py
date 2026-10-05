@@ -36,8 +36,11 @@ class XAIService:
                 rmse=model.metrics["RMSE"],
                 mae=model.metrics["MAE"],
                 r_squared=model.metrics["R2"],
-                training_date=None,  # not recorded in the artefact
-                validation_period=f"Held-out test split ({test_n} rows)" if test_n else None,
+                training_date=model.trained_at.date().isoformat() if model.trained_at else None,
+                validation_period=(
+                    f"Held-out {model.split_strategy or 'test'} split ({test_n} rows)"
+                    if test_n else None
+                ),
             ),
             mean_bias_error=model.metrics.get("MBE"),
             target_column=model.target_column,

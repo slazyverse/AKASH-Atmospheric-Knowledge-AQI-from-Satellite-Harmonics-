@@ -24,7 +24,7 @@ from dashboard.components import (
 )
 from dashboard.core.theme import PRIMARY
 from dashboard.services import xai_service
-from dashboard.services.data_sources import get_source
+from dashboard.services.data_sources import trust_label, trust_reason
 
 _CAPABILITIES = [
     ("Global feature importance", "xai_global"),
@@ -97,8 +97,8 @@ def _render_trained_model() -> None:
 def _render_capabilities() -> None:
     rows = []
     for label, domain in _CAPABILITIES:
-        s = get_source(domain)
-        rows.append({"Capability": label, "Status": s["kind"].upper(), "Detail": s.get("detail", "")})
+        rows.append({"Capability": label, "Status": trust_label(domain),
+                     "Detail": trust_reason(domain)})
     st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True)
     st.caption(
         "Counterfactual (what-if) analysis and LIME are not implemented. Statuses come from "

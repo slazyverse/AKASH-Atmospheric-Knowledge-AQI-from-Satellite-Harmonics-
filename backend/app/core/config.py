@@ -133,6 +133,18 @@ class Settings(BaseSettings):
     # metadata). Loaded only when ENABLE_ML_ENDPOINTS=true.
     ML_MODEL_PATH: str | None = None
     ENABLE_ML_ENDPOINTS: bool = False
+    # ── Trust / promotion (see app/data/trust.py) ──────────────────────────────
+    # Team outputs that pass the contract gate but not every promotion check are
+    # used as UNVERIFIED for the capabilities that stay safe (e.g. AQI tables).
+    # true → only PROMOTED (trusted) team outputs are used; otherwise the
+    # domain keeps its placeholder / unavailable state.
+    REQUIRE_TRUSTED_TEAM_DATA: bool = False
+    # Opt-in isolated load probe for the model artefact (unpickles it in a
+    # subprocess). Without it a model can never be promoted.
+    MODEL_LOAD_CHECK: bool = False
+    # Interpreter for the probe (e.g. the ML team's training environment with
+    # the exact lightgbm / scikit-learn versions); default: the API's own.
+    MODEL_PROBE_PYTHON: str | None = None
 
     # ── Validators ────────────────────────────────────────────────────────────
 

@@ -27,12 +27,9 @@ from app.core.geo import in_india
 from app.core.units import MOL_M2_TO_1E15_MOLEC_CM2
 from app.data import sources as sources_module
 from app.data.dataset import load_dataset
-from app.data.model_artifact import (
-    ModelArtifactError,
-    assess_production_readiness,
-    load_model_artifact,
-)
+from app.data.model_artifact import ModelArtifactError, load_model_artifact
 from app.data.sources import load_configured_sources, sources
+from app.data.trust import assess_model
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -80,6 +77,11 @@ TEAM_ROWS = [
          "-0.0001", "2026-06-29"),
     _row("STN_041", "Conflict", "Pune", "Maharashtra", C, "40,80,20,5,25,30", "140",
          "-0.0001", "2026-06-29"),
+    # More valid stations on the shared fallback coordinate A: keeps the defect rate
+    # realistic (5 of 21 rows rejected ≈ 24%; the team file has 12%) so the source
+    # passes the contract gate and is used as UNVERIFIED
+    *[_row(f"STN_1{i:02d}", f"Station A{6 + i}", f"Town{6 + i}", "Maharashtra", A,
+           "40,80,20,5,25,30", "105", "0.0002", "2026-06-29") for i in range(1, 7)],
 ]
 
 TEAM_CLUSTERS = [
@@ -127,12 +129,39 @@ def _model_dir(root: Path, summary: dict, importances: dict | None = None) -> Pa
     return root
 
 
+# Every key the trust gate requires (synthetic test values, not a real run)
 VALIDATED = {
+    "model_type": "LGBMRegressor", "task": "same_day_estimation",
     "target_column": "AQI", "test_samples": 76,
     "feature_names": ["Wind Speed", "HCHO", "Temperature"],
     "trained_at": "2026-07-20T10:00:00Z", "split_strategy": "temporal",
-    "reproducibility": {"lightgbm_version": "9.9.9", "sklearn_version": "9.9.9"},
+    "reproducibility": {"lightgbm_version": "4.5.0", "sklearn_version": "1.5.2"},
+    "input_example": [{"Wind Speed": 2.1, "HCHO": 0.0002, "Temperature": 31.0}],
 }
+PROBE_CHECKS = {"artifact_loads", "model_object_type", "feature_schema_matches",
+                "dependency_versions", "prediction_schema"}
+
+
+def _probe(**overrides: object) -> dict:
+    """What app.data.model_probe reports for a sound LightGBM pipeline (test double)."""
+    report: dict = {
+        "loaded": True, "error": None, "object_type": "sklearn.pipeline.Pipeline",
+        "steps": [
+            {"name": "preprocessor",
+             "type": "sklearn.compose._column_transformer.ColumnTransformer"},
+            {"name": "regressor", "type": "lightgbm.sklearn.LGBMRegressor"},
+        ],
+        "final_estimator": "lightgbm.sklearn.LGBMRegressor",
+        "feature_names_in": ["Wind Speed", "HCHO", "Temperature"],
+        "versions": {"lightgbm": "4.5.1", "sklearn": "1.5.0", "joblib": "1.4.2"},
+        "prediction": {"rows": 1, "outputs": 1, "finite": True},
+    }
+    report.update(overrides)
+    return report
+
+
+def _failed(assessment) -> str:
+    return " | ".join(c.detail for c in assessment.failed("blocking", "restricting"))
 # Exactly the keys model_training/lightgbm_model.py (PR #7) writes today
 TEAM_TRAINER = {
     "target_column": "AQI", "train_samples": 300, "validation_samples": 76,
@@ -178,18 +207,18 @@ class TestCentralRules:
 class TestTeamDataset:
     def test_rows_rejected_by_reason_and_duplicates(self, team_csv: Path) -> None:
         q = load_dataset(team_csv).quality
-        assert q.rows_read == len(TEAM_ROWS) == 15
+        assert q.rows_read == len(TEAM_ROWS) == 21
         assert q.rejected["below_cpcb_minimum"] == 1
         assert q.rejected["invalid_aqi"] == 1
         assert q.rejected["outside_india"] == 1
         assert q.duplicates_collapsed == 1
         assert q.conflicting_duplicates_dropped == 2
-        assert q.rows_accepted == 9 and q.stations == 9
+        assert q.rows_accepted == 15 and q.stations == 15
 
     def test_shared_coordinates_flag_approximate_locations(self, team_csv: Path) -> None:
         ds = load_dataset(team_csv)
         assert ds.quality.distinct_locations == 3
-        assert ds.quality.stations_sharing_coordinates == 8
+        assert ds.quality.stations_sharing_coordinates == 14
         assert ds.location_quality == "approximate"
         # Coordinates are preserved as reported — never "corrected"
         assert {o.location for o in ds.observations} == {
@@ -211,8 +240,8 @@ class TestTeamDataset:
 
     def test_satellite_samples_independent_of_ground_aqi(self, team_csv: Path) -> None:
         ds = load_dataset(team_csv)
-        # 15 rows: London is outside India; every other row has a valid satellite sample
-        assert ds.quality.hcho_samples == len(ds.hcho_samples) == 14
+        # 21 rows: London is outside India; every other row has a valid satellite sample
+        assert ds.quality.hcho_samples == len(ds.hcho_samples) == 20
         assert "STN_031" in {s.station_id for s in ds.hcho_samples}  # AQI rejected
         assert ds.quality.hcho_dates == (date(2026, 6, 27), date(2026, 6, 29))
         assert ds.hcho_date_basis == "satellite_observation_date"
@@ -252,7 +281,7 @@ class TestTeamDatasetEndpoints:
         self, client_no_db: AsyncClient
     ) -> None:
         stations = (await client_no_db.get("/api/v1/stations", params={"limit": 50})).json()
-        assert stations["count"] == 9
+        assert stations["count"] == 15
         assert {s["location_quality"] for s in stations["items"]} == {"approximate"}
         assert "STN_031" not in {s["station_id"] for s in stations["items"]}  # rejected row
         readings = (await client_no_db.get("/api/v1/aqi/daily")).json()["summary"]["readings"]
@@ -280,10 +309,10 @@ class TestTeamDatasetEndpoints:
         # 06-28: two stations on one coordinate = one satellite sample
         assert (by_day["2026-06-28"]["station_count"], by_day["2026-06-28"]["location_count"]) \
             == (2, 1)
-        # 06-29: six stations on A (one sample) + C1, STN_032, STN_041 on C (negative
+        # 06-29: twelve stations on A (one sample) + C1, STN_032, STN_041 on C (negative
         # retrieval kept) = 2 locations; London (outside India) never counts
         june29 = by_day["2026-06-29"]
-        assert (june29["station_count"], june29["location_count"]) == (9, 2)
+        assert (june29["station_count"], june29["location_count"]) == (15, 2)
         expected = (0.0002 + -0.0001) / 2 * MOL_M2_TO_1E15_MOLEC_CM2
         assert june29["mean_column_density"] == pytest.approx(expected, abs=1e-3)
 
@@ -335,62 +364,107 @@ class TestTeamHotspots:
 # ── Model artefact production gate (PR #7 LightGBM) ─────────────────────────────
 
 class TestModelGate:
-    def test_validated_artefact(self, tmp_path: Path) -> None:
+    def test_valid_contract_and_load_probe_is_promotable(self, tmp_path: Path) -> None:
         artifact = load_model_artifact(_model_dir(tmp_path / "run", VALIDATED))
-        assert assess_production_readiness(artifact) == []
+        assessment = assess_model(artifact, _probe())
+        assert assessment.promotable, _failed(assessment)
+        assert assessment.capabilities["model_metrics"].enabled
+        assert not assessment.capabilities["model_forecast"].enabled
+
+    def test_complete_metadata_without_load_check_stays_unverified(self, tmp_path: Path) -> None:
+        artifact = load_model_artifact(_model_dir(tmp_path / "run", VALIDATED))
+        assessment = assess_model(artifact, None)
+        assert assessment.usable and not assessment.promotable
+        assert {c.name for c in assessment.failed("restricting")} == PROBE_CHECKS
+        assert not assessment.capabilities["global_importance"].enabled
 
     def test_team_trainer_output_is_not_validated(self, tmp_path: Path) -> None:
         artifact = load_model_artifact(_model_dir(tmp_path / "run", TEAM_TRAINER))
-        problems = " | ".join(assess_production_readiness(artifact))
-        assert "feature_names" in problems
-        assert "trained_at" in problems
-        assert "split_strategy not recorded" in problems
+        failed = {c.name for c in assess_model(artifact, _probe()).failed("restricting")}
+        assert {"model_type_recorded", "task_same_day_estimation", "feature_names",
+                "training_date", "split_strategy", "prediction_schema_recorded"} <= failed
 
     @pytest.mark.parametrize(
         ("change", "importances", "expected"),
         [
             ({"split_strategy": "random"}, None, "not time-based"),
             ({"feature_names": ["PM2.5", "HCHO", "Temperature"]},
-             {"num__PM2.5": 70, "HCHO": 20, "Temperature": 10}, "target leakage"),
-            ({"task": "forecast", "forecast_horizon_hours": 72}, None, "forecasting task"),
+             {"num__PM2.5": 70, "HCHO": 20, "Temperature": 10}, "Target leakage"),
+            ({"task": "forecast", "forecast_horizon_hours": 72}, None,
+             "not a same-day estimator"),
             ({"target_column": "PM2.5"}, None, "expected 'AQI'"),
             ({}, {"Wind Speed": 30, "Rainfall": 70}, "not in feature_names"),
+            ({"model_type": "RandomForestRegressor"}, None, "'RandomForestRegressor'"),
+            ({"input_example": None}, None, "No input_example"),
         ],
     )
-    def test_rejections(self, tmp_path: Path, change: dict, importances: dict | None,
-                        expected: str) -> None:
+    def test_metadata_rejections(self, tmp_path: Path, change: dict, importances: dict | None,
+                                 expected: str) -> None:
         artifact = load_model_artifact(
             _model_dir(tmp_path / "run", {**VALIDATED, **change}, importances)
         )
-        assert expected in " | ".join(assess_production_readiness(artifact))
+        assessment = assess_model(artifact, _probe())
+        assert not assessment.promotable and expected in _failed(assessment)
+
+    @pytest.mark.parametrize(
+        ("probe", "check"),
+        [
+            ({"loaded": False, "error": "cannot load artefact: EOFError"}, "artifact_loads"),
+            ({"final_estimator": "sklearn.ensemble.RandomForestRegressor"},
+             "model_object_type"),
+            ({"steps": []}, "model_object_type"),
+            ({"feature_names_in": ["Wind Speed", "HCHO"]}, "feature_schema_matches"),
+            ({"versions": {"lightgbm": "3.3.5", "sklearn": "1.5.0"}}, "dependency_versions"),
+            ({"prediction": {"rows": 1, "outputs": 1, "finite": False}}, "prediction_schema"),
+            ({"prediction": {"rows": 1, "error": "KeyError: 'HCHO'"}}, "prediction_schema"),
+        ],
+    )
+    def test_load_probe_rejections(self, tmp_path: Path, probe: dict, check: str) -> None:
+        artifact = load_model_artifact(_model_dir(tmp_path / "run", VALIDATED))
+        failed = {c.name for c in assess_model(artifact, _probe(**probe)).failed("restricting")}
+        assert check in failed
 
     def test_one_hot_importances_match_base_features(self, tmp_path: Path) -> None:
-        summary = {**VALIDATED, "feature_names": ["Wind Speed", "Season"]}
+        summary = {**VALIDATED, "feature_names": ["Wind Speed", "Season"],
+                   "input_example": [{"Wind Speed": 2.0, "Season": "Monsoon"}]}
         imps = {"num__Wind Speed": 60, "cat__Season_Monsoon": 40}
         artifact = load_model_artifact(_model_dir(tmp_path / "run", summary, imps))
-        assert assess_production_readiness(artifact) == []
+        assert assess_model(artifact, _probe(feature_names_in=["Wind Speed", "Season"])).promotable
 
-    async def test_unvalidated_artefact_is_not_served(
+    async def test_unvalidated_artefact_is_withheld(
         self, client_no_db: AsyncClient, tmp_path: Path
     ) -> None:
         run = _model_dir(tmp_path / "run", TEAM_TRAINER)
         load_configured_sources(_settings(ML_MODEL_PATH=str(run), ENABLE_ML_ENDPOINTS=True))
         model = sources.status("model")
-        assert model.kind == "unavailable" and model.name == "run"
+        assert (model.kind, model.status, model.trust, model.promoted) == (
+            "local", "withheld", "unverified", False)
         assert model.has("not_validated") and "found but not validated" in model.detail
-        assert sources.status("xai_global").kind == "unavailable"
+        assert sources.model is None and sources.status("xai_global").kind == "unavailable"
         resp = await client_no_db.get("/api/v1/xai/global-importance")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
         assert "not validated" in json.dumps(resp.json())
 
-    async def test_validated_artefact_is_served(
-        self, client_no_db: AsyncClient, tmp_path: Path
-    ) -> None:
+    def test_complete_metadata_needs_the_load_check(self, tmp_path: Path) -> None:
         run = _model_dir(tmp_path / "run", VALIDATED)
         load_configured_sources(_settings(ML_MODEL_PATH=str(run), ENABLE_ML_ENDPOINTS=True))
-        assert sources.status("model").kind == "local"
+        model = sources.status("model")
+        assert model.status == "withheld" and "MODEL_LOAD_CHECK" in model.reason
+
+    async def test_promoted_artefact_is_served(
+        self, client_no_db: AsyncClient, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(sources_module, "run_probe", lambda directory, python: _probe())
+        run = _model_dir(tmp_path / "run", VALIDATED)
+        load_configured_sources(_settings(ML_MODEL_PATH=str(run), ENABLE_ML_ENDPOINTS=True,
+                                          MODEL_LOAD_CHECK=True))
+        model = sources.status("model")
+        assert (model.kind, model.trust, model.promoted) == ("local", "trusted", True)
+        assert sources.status("xai_global").trust == "trusted"
         data = (await client_no_db.get("/api/v1/xai/global-importance")).json()
         assert data["model_metrics"]["r_squared"] == 0.41
+        assert data["model_metrics"]["training_date"] == "2026-07-20"
+        assert data["model_metrics"]["validation_period"] == "Held-out temporal split (76 rows)"
         forecast = (await client_no_db.get("/api/v1/forecast",
                                            params={"station_id": "DL001"})).json()
         assert forecast["forecast_kind"] == "simulated"  # an estimator never becomes a forecast
@@ -398,10 +472,13 @@ class TestModelGate:
     def test_discovered_model_in_trainer_output_dir(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     ) -> None:
+        monkeypatch.setattr(sources_module, "run_probe", lambda directory, python: _probe())
         run = _model_dir(tmp_path / "repo", VALIDATED)
         monkeypatch.setattr(sources_module, "MODEL_DISCOVERY_DIRS", (run,))
-        load_configured_sources(Settings(_env_file=None, ENABLE_ML_ENDPOINTS=True))
-        assert sources.status("model").kind == "local"
+        load_configured_sources(Settings(_env_file=None, ENABLE_ML_ENDPOINTS=True,
+                                         MODEL_LOAD_CHECK=True))
+        model = sources.status("model")
+        assert (model.origin, model.promoted) == ("discovered", True)
 
     def test_discovered_broken_model_is_reported_not_fatal(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

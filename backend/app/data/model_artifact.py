@@ -16,15 +16,18 @@ Note: this model is a same-day AQI estimator (satellite + meteorology →
 surface AQI), not a multi-step forecaster, so its metrics are exposed via the
 XAI endpoint and are deliberately NOT attached to /forecast.
 
-Production gate (assess_production_readiness): a structurally valid artefact
-is served only when its training summary also records what is needed to trust
-the numbers — target AQI, an explicit feature_names list, the training date
-(trained_at), lightgbm / scikit-learn versions, the held-out test size and a
-time-based split_strategy — and its features contain no ground pollutant / AQI
-inputs (target leakage). An artefact that declares a forecasting task is
-rejected here: forecasters plug in through the Forecaster interface instead.
-The team trainer on PR #7 does not yet record feature_names, trained_at or
-split_strategy, so its artefacts are reported as "found but not validated".
+Trust gate (app.data.trust.assess_model): a structurally valid artefact is
+served only when its training summary records everything needed to trust the
+numbers — model_type, target AQI, task "same_day_estimation", feature_names,
+trained_at, a time-based split_strategy, held-out metrics and test size,
+lightgbm / scikit-learn versions and an input_example — its features contain no
+ground pollutant / AQI inputs, AND the opt-in isolated load probe
+(app.data.model_probe, MODEL_LOAD_CHECK) confirms the pickle loads as a
+preprocessing pipeline ending in LGBMRegressor with matching input columns,
+matching library versions and a finite prediction for the input_example. The
+team trainer on PR #7 records none of model_type, task, feature_names,
+trained_at, split_strategy or input_example, so its artefacts stay
+"unverified". Metadata is never filled in or guessed here.
 """
 
 from __future__ import annotations
@@ -179,68 +182,6 @@ def load_model_artifact(directory: str | Path) -> ModelArtifact:
     )
 
 
-def _base_feature(name: str) -> str:
-    # Pipeline output names look like "num__Wind Speed" or "cat__Season_Monsoon"
+def base_feature(name: str) -> str:
+    """Pipeline output names look like "num__Wind Speed" or "cat__Season_Monsoon"."""
     return name.split("__")[-1].strip()
-
-
-def assess_production_readiness(artifact: ModelArtifact) -> list[str]:
-    """
-    Problems that keep a structurally valid artefact out of production ([] = validated).
-
-    Never inspects the pickled model; every check uses the JSON metadata.
-    """
-    problems: list[str] = []
-    if not artifact.summary:
-        return [f"{SUMMARY_FILE} is missing, so nothing about the training run is recorded"]
-
-    if artifact.target_column != "AQI":
-        problems.append(f"target_column is {artifact.target_column!r}, expected 'AQI'")
-    features = artifact.feature_names
-    if features is None:
-        problems.append(
-            "no explicit feature_names list in the training summary "
-            "(features_count alone cannot verify the input schema)"
-        )
-    if artifact.trained_at is None:
-        problems.append("training date (trained_at) not recorded")
-    missing_libs = [
-        k for k in ("lightgbm_version", "sklearn_version") if k not in artifact.library_versions
-    ]
-    if missing_libs:
-        problems.append(f"library versions not recorded: {missing_libs}")
-    if not artifact.test_samples:
-        problems.append("held-out test sample count not recorded")
-    split = artifact.split_strategy
-    if split is None:
-        problems.append("split_strategy not recorded (metrics may come from a random split)")
-    elif split.lower() not in TIME_BASED_SPLITS:
-        problems.append(
-            f"split_strategy {split!r} is not time-based; metrics would be optimistic"
-        )
-
-    used = features or [name for name, _ in artifact.feature_importances]
-    leaky = sorted({_base_feature(n) for n in used if _base_feature(n).lower() in LEAKY_FEATURES})
-    if leaky:
-        problems.append(f"target leakage: ground pollutant / AQI inputs {leaky}")
-    if features is not None:
-        unknown = [
-            name for name, _ in artifact.feature_importances
-            if not any(
-                _base_feature(name) == f or _base_feature(name).startswith(f"{f}_")
-                for f in features
-            )
-        ]
-        if unknown:
-            problems.append(
-                f"feature importances name features not in feature_names: {unknown[:5]}"
-            )
-
-    task = artifact.summary.get("task")
-    horizon = artifact.summary.get("forecast_horizon_hours")
-    if (isinstance(task, str) and task.lower() not in ESTIMATOR_TASKS) or horizon:
-        problems.append(
-            f"artefact declares a forecasting task ({task or f'horizon {horizon} h'}); only "
-            "same-day AQI estimators are served here — forecasters use the Forecaster interface"
-        )
-    return problems
