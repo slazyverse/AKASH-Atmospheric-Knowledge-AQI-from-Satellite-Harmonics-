@@ -104,12 +104,62 @@ class TestSourceStatus:
         assert "unreachable" in status_["detail"].lower()
 
 
+LIMITED = {
+    "aqi": {**SOURCES["aqi"], "kind": "local", "name": "analysis_ready_dataset.csv",
+            "limitations": [
+                {"code": "approximate_coordinates", "message": "429 of 442 stations share coordinates."},
+                {"code": "co_unit_unverified", "message": "CO median 27 implausible in mg/m³."},
+            ]},
+    "hcho": {**SOURCES["hcho"], "limitations": [
+        {"code": "unverified_coordinates", "message": "Members not matched."},
+        {"code": "no_observation_date", "message": "Undated."},
+    ]},
+    "forecast": SOURCES["forecast"],
+}
+
+
+class TestLimitations:
+    @pytest.fixture(autouse=True)
+    def _sources(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(data_sources, "get_sources", lambda: LIMITED)
+
+    def test_limitations_listed(self) -> None:
+        assert [i["code"] for i in data_sources.limitations("aqi")] == [
+            "approximate_coordinates", "co_unit_unverified",
+        ]
+        assert data_sources.has_limitation("aqi", "co_unit_unverified")
+        assert data_sources.limitations("forecast") == []
+
+    def test_maps_withheld_for_approximate_or_unverified_coordinates(self) -> None:
+        assert "share coordinates" in data_sources.spatial_restriction("aqi")
+        assert data_sources.spatial_restriction("hcho") == "Members not matched."
+        assert data_sources.spatial_restriction("forecast") is None
+
+    def test_team_data_is_not_called_validated(self) -> None:
+        # LOCAL = team output; limitations still apply
+        assert data_sources.is_team_data("aqi") and data_sources.limitations("aqi")
+
+    def test_offline_has_no_limitations_and_no_map_restriction_claims(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(data_sources, "get_sources", lambda: {})
+        assert data_sources.limitations("aqi") == []
+        assert data_sources.spatial_restriction("aqi") is None
+        assert data_sources.source_kind("aqi") == "unavailable"
+
+
 class TestAQIService:
     def test_nullable_pollutants_preserved(self) -> None:
         service = SurfaceAQIService(FakeClient({"/aqi/daily": {"summary": {"readings": [READING]}}}))
         (reading,) = service.get_latest_readings()
         assert reading.no2 is None and reading.so2 is None
         assert reading.pm25 == 24.6
+        assert reading.location_quality == "reported"  # older payloads without the field
+
+    def test_location_quality_passed_through(self) -> None:
+        payload = {"summary": {"readings": [dict(READING, location_quality="approximate")]}}
+        (reading,) = SurfaceAQIService(FakeClient({"/aqi/daily": payload})).get_latest_readings()
+        assert reading.location_quality == "approximate"
 
     def test_history_is_observed_points_in_order(self) -> None:
         points = [dict(READING, recorded_at=f"2026-07-{d}T00:00:00Z", aqi_value=90 + d) for d in (12, 13, 14)]
@@ -144,6 +194,21 @@ class TestHCHOService:
                    "points": [{"obs_date": "2026-07-14", "mean_column_density": 9.4, "station_count": 8}]}
         (point,) = HCHOService(FakeClient({"/hcho/trend": payload})).get_trend(days=7)
         assert point.obs_date == date(2026, 7, 14) and point.station_count == 8
+        assert point.location_count == 8 and point.date_basis == "station_observation_date"
+
+    def test_trend_by_satellite_date_with_locations(self) -> None:
+        payload = {"date_basis": "satellite_observation_date", "count": 1, "points": [
+            {"obs_date": "2026-06-29", "mean_column_density": 13.8, "station_count": 215,
+             "location_count": 19},
+        ]}
+        (point,) = HCHOService(FakeClient({"/hcho/trend": payload})).get_trend()
+        assert (point.location_count, point.date_basis) == (19, "satellite_observation_date")
+
+    def test_hotspot_location_fields(self) -> None:
+        item = dict(HOTSPOT, station_count=38, member_locations=1, location_quality="approximate")
+        (hotspot,) = HCHOService(FakeClient({"/hcho/hotspots": {"items": [item]}})).get_hotspots()
+        assert (hotspot.station_count, hotspot.member_locations) == (38, 1)
+        assert hotspot.location_quality == "approximate"
 
     @pytest.mark.parametrize("error", [APIConnectionError("down"), APINotFoundError("none", 404)])
     def test_no_hardcoded_fallback(self, error: Exception) -> None:

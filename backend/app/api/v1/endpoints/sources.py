@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.data.sources import sources
-from app.schemas.sources import SourcesResponse, SourceStatusItem
+from app.schemas.sources import SourceLimitationItem, SourcesResponse, SourceStatusItem
 
 router = APIRouter()
 
@@ -22,10 +22,13 @@ router = APIRouter()
     response_model=SourcesResponse,
     summary="Data Source Status",
     description=(
-        "Lists the source behind every domain (aqi, stations, hcho, fire, model, forecast, "
-        "xai_global, xai_local, spatial_rasters) with its kind: `live`, `local` (team output "
-        "file), `placeholder` (bundled deterministic fixture — not real data), `simulated` or "
-        "`unavailable`, plus record counts, the latest date in the source and an explanation."
+        "Lists the source behind every domain (aqi, stations, hcho_trend, hcho, fire, model, "
+        "forecast, xai_global, xai_local, spatial_rasters) with its kind: `live`, `local` (team "
+        "output file), `placeholder` (bundled deterministic fixture — not real data), "
+        "`simulated` or `unavailable`, plus record counts, the latest date in the source, an "
+        "explanation, known `limitations` (e.g. `approximate_coordinates`: do not map) and the "
+        "adapter's `quality` report. `local` means team output, not scientifically validated "
+        "data — read the limitations."
     ),
     tags=["observability"],
 )
@@ -40,6 +43,11 @@ async def get_sources() -> SourcesResponse:
                 detail=s.detail,
                 records=s.records,
                 as_of=s.as_of,
+                limitations=[
+                    SourceLimitationItem(code=lim.code, message=lim.message)
+                    for lim in s.limitations
+                ],
+                quality=s.quality,
             )
             for s in sources.statuses.values()
         ]

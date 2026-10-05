@@ -17,6 +17,7 @@ import streamlit as st
 from dashboard.components import (
     render_daily_hcho_trend,
     render_hcho_spatial_map,
+    render_map_withheld,
     render_info_notice,
     render_no_data,
     render_page_footer,
@@ -76,7 +77,8 @@ def render() -> None:
     left, right = st.columns([3, 2])
     with left:
         st.markdown(f"<h4 style='color:{PRIMARY}'>🗺️ HCHO Hotspot Map</h4>", unsafe_allow_html=True)
-        render_hcho_spatial_map(hotspots, key="hcho_spatial_map_widget")
+        if not render_map_withheld("hcho", "Hotspot map"):
+            render_hcho_spatial_map(hotspots, key="hcho_spatial_map_widget")
     with right:
         st.markdown(f"<h4 style='color:{PRIMARY}'>📊 Source Attribution</h4>", unsafe_allow_html=True)
         render_info_notice(
@@ -101,16 +103,20 @@ def render() -> None:
 
     # ── Station-collocated HCHO trend (from the station dataset) ──────────────
     st.markdown(f"<h4 style='color:{PRIMARY}'>📈 HCHO at Stations — Daily Mean</h4>", unsafe_allow_html=True)
-    render_source_badge("aqi", "Trend source (station dataset)")
+    render_source_badge("hcho_trend", "Trend source (station dataset)")
     trend = hcho_service.get_trend(days=30)
     trend_df = pd.DataFrame(
         [{"date": p.obs_date, "column_density": p.mean_column_density} for p in trend]
     )
     render_daily_hcho_trend(trend_df, title="Daily mean satellite HCHO column at stations (×10¹⁵ molec/cm²)")
     if trend:
+        basis = ("satellite overpass date" if trend[0].date_basis == "satellite_observation_date"
+                 else "station observation date")
+        per_day = ", ".join(f"{p.location_count} loc / {p.station_count} stn" for p in trend)
         st.caption(
-            f"{len(trend)} day(s); stations per day: {', '.join(str(p.station_count) for p in trend)}. "
-            "Satellite column sampled at station locations — not a gridded national mean."
+            f"{len(trend)} day(s), dated by {basis}; distinct sampling locations / stations per "
+            f"day: {per_day}. Each location counts once. Satellite column sampled at station "
+            "coordinates — not a gridded national mean."
         )
 
     render_page_footer()
@@ -168,6 +174,9 @@ def _render_hotspot_table(hotspots: list[Any]) -> None:
             "Source Type": h.source_type.replace("_", " ").title(),
             "Confidence": f"{h.confidence:.0%}" if h.confidence is not None else "not scored",
             "Detected": h.detected_at.strftime("%Y-%m-%d") if h.detected_at else "no date in source",
+            "Stations": h.station_count,
+            "Distinct locations": h.member_locations,
+            "Location": h.location_quality,
         }
         for h in hotspots
     ]

@@ -15,6 +15,16 @@ predictions yet, so the binary is only checked for presence.
 Note: this model is a same-day AQI estimator (satellite + meteorology →
 surface AQI), not a multi-step forecaster, so its metrics are exposed via the
 XAI endpoint and are deliberately NOT attached to /forecast.
+
+Production gate (assess_production_readiness): a structurally valid artefact
+is served only when its training summary also records what is needed to trust
+the numbers — target AQI, an explicit feature_names list, the training date
+(trained_at), lightgbm / scikit-learn versions, the held-out test size and a
+time-based split_strategy — and its features contain no ground pollutant / AQI
+inputs (target leakage). An artefact that declares a forecasting task is
+rejected here: forecasters plug in through the Forecaster interface instead.
+The team trainer on PR #7 does not yet record feature_names, trained_at or
+split_strategy, so its artefacts are reported as "found but not validated".
 """
 
 from __future__ import annotations
@@ -22,6 +32,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -35,6 +46,12 @@ IMPORTANCES_FILE = "lightgbm_feature_importances.json"
 SUMMARY_FILE = "lightgbm_training_summary.json"
 
 _REQUIRED_METRICS = ("R2", "RMSE", "MAE")
+
+# Ground-truth columns the AQI target is computed from: using any of them as a
+# model input leaks the target (satellite columns such as "NO2 Column" are fine).
+LEAKY_FEATURES = frozenset({"aqi", "pm2.5", "pm25", "pm10", "no2", "so2", "co", "o3"})
+TIME_BASED_SPLITS = frozenset({"temporal", "time", "time_series", "chronological"})
+ESTIMATOR_TASKS = frozenset({"same_day_estimation", "estimation", "regression"})
 
 
 class ModelArtifactError(ValueError):
@@ -65,7 +82,38 @@ class ModelArtifact:
     @property
     def test_samples(self) -> int | None:
         value = self.summary.get("test_samples")
-        return value if isinstance(value, int) else None
+        return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+    @property
+    def feature_names(self) -> list[str] | None:
+        names = self.summary.get("feature_names")
+        if isinstance(names, list) and names and all(isinstance(n, str) and n for n in names):
+            return names
+        return None
+
+    @property
+    def trained_at(self) -> datetime | None:
+        raw = self.summary.get("trained_at") or self.summary.get("training_date")
+        if not isinstance(raw, str):
+            return None
+        try:
+            return datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+
+    @property
+    def split_strategy(self) -> str | None:
+        value = self.summary.get("split_strategy")
+        return value if isinstance(value, str) and value else None
+
+    @property
+    def library_versions(self) -> dict[str, str]:
+        repro = self.summary.get("reproducibility")
+        repro = repro if isinstance(repro, dict) else {}
+        return {
+            k: str(repro[k]) for k in ("lightgbm_version", "sklearn_version", "python_version")
+            if repro.get(k)
+        }
 
 
 def _read_json(path: Path) -> Any:
@@ -129,3 +177,70 @@ def load_model_artifact(directory: str | Path) -> ModelArtifact:
         feature_importances=importances,
         summary=summary,
     )
+
+
+def _base_feature(name: str) -> str:
+    # Pipeline output names look like "num__Wind Speed" or "cat__Season_Monsoon"
+    return name.split("__")[-1].strip()
+
+
+def assess_production_readiness(artifact: ModelArtifact) -> list[str]:
+    """
+    Problems that keep a structurally valid artefact out of production ([] = validated).
+
+    Never inspects the pickled model; every check uses the JSON metadata.
+    """
+    problems: list[str] = []
+    if not artifact.summary:
+        return [f"{SUMMARY_FILE} is missing, so nothing about the training run is recorded"]
+
+    if artifact.target_column != "AQI":
+        problems.append(f"target_column is {artifact.target_column!r}, expected 'AQI'")
+    features = artifact.feature_names
+    if features is None:
+        problems.append(
+            "no explicit feature_names list in the training summary "
+            "(features_count alone cannot verify the input schema)"
+        )
+    if artifact.trained_at is None:
+        problems.append("training date (trained_at) not recorded")
+    missing_libs = [
+        k for k in ("lightgbm_version", "sklearn_version") if k not in artifact.library_versions
+    ]
+    if missing_libs:
+        problems.append(f"library versions not recorded: {missing_libs}")
+    if not artifact.test_samples:
+        problems.append("held-out test sample count not recorded")
+    split = artifact.split_strategy
+    if split is None:
+        problems.append("split_strategy not recorded (metrics may come from a random split)")
+    elif split.lower() not in TIME_BASED_SPLITS:
+        problems.append(
+            f"split_strategy {split!r} is not time-based; metrics would be optimistic"
+        )
+
+    used = features or [name for name, _ in artifact.feature_importances]
+    leaky = sorted({_base_feature(n) for n in used if _base_feature(n).lower() in LEAKY_FEATURES})
+    if leaky:
+        problems.append(f"target leakage: ground pollutant / AQI inputs {leaky}")
+    if features is not None:
+        unknown = [
+            name for name, _ in artifact.feature_importances
+            if not any(
+                _base_feature(name) == f or _base_feature(name).startswith(f"{f}_")
+                for f in features
+            )
+        ]
+        if unknown:
+            problems.append(
+                f"feature importances name features not in feature_names: {unknown[:5]}"
+            )
+
+    task = artifact.summary.get("task")
+    horizon = artifact.summary.get("forecast_horizon_hours")
+    if (isinstance(task, str) and task.lower() not in ESTIMATOR_TASKS) or horizon:
+        problems.append(
+            f"artefact declares a forecasting task ({task or f'horizon {horizon} h'}); only "
+            "same-day AQI estimators are served here — forecasters use the Forecaster interface"
+        )
+    return problems

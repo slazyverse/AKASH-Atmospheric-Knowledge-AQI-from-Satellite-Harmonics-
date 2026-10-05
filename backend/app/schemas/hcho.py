@@ -18,7 +18,7 @@ Source type classification:
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field
 
@@ -70,6 +70,25 @@ class HCHOHotspotItem(BaseModel):
     detected_at: datetime | None = Field(
         default=None,
         description="UTC timestamp of the observation behind this hotspot (null if unknown).",
+    )
+    station_count: int | None = Field(
+        default=None, ge=0, description="Member stations in the cluster (null if not recorded).",
+    )
+    member_locations: int | None = Field(
+        default=None,
+        ge=1,
+        description=(
+            "Distinct dataset locations of the member stations (null if no member could be "
+            "matched to the station dataset). 1 with several stations = all members share one "
+            "fallback coordinate: a duplicate-coordinate artefact, not a spatial cluster."
+        ),
+    )
+    location_quality: Literal["reported", "approximate", "unverified"] = Field(
+        default="reported",
+        description=(
+            "'approximate': centroid of shared fallback station coordinates; 'unverified': "
+            "members not found in the station dataset, precision unknown."
+        ),
     )
 
     model_config = {
@@ -145,11 +164,25 @@ class HCHOTrendPoint(BaseModel):
         ),
     )
     station_count: int = Field(ge=1, description="Stations with an HCHO value that day.")
+    location_count: int = Field(
+        ge=1,
+        description=(
+            "Distinct sampling locations averaged that day (stations sharing one coordinate "
+            "share one satellite sample and are counted once)."
+        ),
+    )
 
 
 class HCHOTrendResponse(BaseModel):
     """Envelope for GET /api/v1/hcho/trend."""
 
     unit: str = Field(default="1e15 molecules/cm2", description="Unit of mean_column_density.")
+    date_basis: Literal["satellite_observation_date", "station_observation_date"] = Field(
+        default="station_observation_date",
+        description=(
+            "Dates are the satellite overpass dates when the source records them "
+            "(HCHO Obs Date), otherwise the station observation dates."
+        ),
+    )
     count: int = Field(ge=0, description="Number of daily points.")
     points: list[HCHOTrendPoint] = Field(description="Daily points, oldest first.")

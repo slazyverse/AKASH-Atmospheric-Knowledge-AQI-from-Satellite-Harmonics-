@@ -22,7 +22,7 @@ from dashboard.components.loading import (
     with_loading,
 )
 from dashboard.components.sidebar import render_sidebar
-from dashboard.components.source_badge import render_source_badge
+from dashboard.components.source_badge import render_map_withheld, render_source_badge
 
 # GIS Maps
 from dashboard.components.map import (
@@ -68,6 +68,7 @@ __all__ = [
     "render_coming_soon",
     # Source status
     "render_source_badge",
+    "render_map_withheld",
     # GIS Maps
     "render_aqi_spatial_map",
     "render_hcho_spatial_map",

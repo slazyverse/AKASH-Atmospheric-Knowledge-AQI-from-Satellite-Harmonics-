@@ -9,6 +9,13 @@ a JSON list of clusters, each with
 That file carries no radius, confidence, source type or observation date.
 Those fields are read when present (radius_km, confidence, source_type,
 observation_date) and are otherwise left empty — never invented.
+
+The clusters are DBSCAN groups of station coordinates, so their positions are
+only as precise as the station dataset they were computed from:
+member_locations() cross-checks member station names against the loaded
+dataset and counts the distinct locations behind each cluster (a "cluster" of
+stations that all share one fallback coordinate is a duplicate-coordinate
+artefact, not a spatial cluster).
 """
 
 from __future__ import annotations
@@ -119,3 +126,11 @@ def load_hotspots(path: str | Path) -> list[HotspotRecord]:
     records = [_parse(item, i) for i, item in enumerate(payload)]
     logger.info("HCHO hotspot clusters loaded", file=file.name, clusters=len(records))
     return records
+
+
+def member_locations(
+    record: HotspotRecord, locations_by_name: dict[str, tuple[float, float]]
+) -> int | None:
+    """Distinct dataset locations of the cluster's member stations (None = no member matched)."""
+    found = {locations_by_name[n] for n in record.stations if n in locations_by_name}
+    return len(found) or None

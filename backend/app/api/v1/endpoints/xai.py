@@ -11,6 +11,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, status
 
 from app.core.exceptions import NotFoundError
+from app.data.sources import sources
 from app.schemas.xai import GlobalImportanceResponse
 from app.services.xai_service import XAIService, xai_service
 
@@ -39,10 +40,13 @@ async def get_global_importance(
     """Return the loaded model's metrics and feature importances."""
     result = service.get_global_importance()
     if result is None:
+        model = sources.status("model")
         raise NotFoundError(
             message="No trained-model artefact is loaded.",
             detail={
-                "hint": "Set ML_MODEL_PATH to the artefact directory and ENABLE_ML_ENDPOINTS=true."
+                "reason": model.detail,
+                "hint": "Set ML_MODEL_PATH to a validated artefact directory and "
+                "ENABLE_ML_ENDPOINTS=true (see GET /api/v1/sources).",
             },
         )
     return result
