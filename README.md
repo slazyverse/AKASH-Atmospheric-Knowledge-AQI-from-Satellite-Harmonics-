@@ -1,4 +1,4 @@
-# AKASH — Atmospheric Knowledge: AQI from Satellite Harmonics
+# AKASH — Atmospheric Knowledge: AQI from Satellite Harmonics-
 
 **VAYU-DRISHTI** is a satellite-based air-quality platform for India. The goal is to estimate
 surface AQI from Sentinel-5P TROPOMI, MODIS and ERA5 data trained against CPCB ground stations,
